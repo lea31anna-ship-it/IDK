@@ -1,0 +1,21 @@
+# Render-Blueprint: Dashboard → "New" → "Blueprint" → dieses Repository wählen.
+services:
+  - type: web
+    name: sternenhuepfer
+    runtime: node
+    region: frankfurt        # Server in der EU (DSGVO)
+    plan: starter            # dauerhafter Speicher braucht einen bezahlten Plan
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/info
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"
+    disk:
+      name: sternenhuepfer-daten
+      mountPath: /var/data
+      sizeGB: 1

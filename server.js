@@ -72,6 +72,17 @@ function kidAuth(req) {
   return code ? db.kids.find(k => normCode(k.code) === code) : null;
 }
 
+// Hinter einem Hoster-Proxy (Render, Railway, nginx …) TRUST_PROXY=1 setzen:
+// dann zählt die vom Proxy angehängte Adresse (letzter X-Forwarded-For-Eintrag),
+// sonst würden alle Kinder dieselbe Proxy-Adresse teilen.
+function clientIp(req) {
+  if (process.env.TRUST_PROXY === '1') {
+    const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (xff.length) return xff[xff.length - 1];
+  }
+  return req.socket.remoteAddress;
+}
+
 // Einfaches Rate-Limit gegen Code-/Passwort-Raten
 const attempts = new Map();
 function limited(key, max = 10, windowMs = 10 * 60 * 1000) {
@@ -120,7 +131,7 @@ function kidSummary(k) {
 // ---------- API ----------
 async function api(req, res, url) {
   const p = url.pathname; const m = req.method;
-  const ip = req.socket.remoteAddress;
+  const ip = clientIp(req);
 
   if (p === '/api/info' && m === 'GET') {
     const { practiceName, coachName, contactUrl, welcome } = db.settings;

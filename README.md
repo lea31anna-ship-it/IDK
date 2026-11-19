@@ -83,10 +83,13 @@ Einstellbare Umgebungsvariablen:
 | `PORT` | Port | `3000` |
 | `DATA_DIR` | Ordner für die Datenbank (`db.json`) | `./data` |
 | `COACH_PASSWORD` | setzt das Coach-Passwort beim ersten Start; ohne diese Variable legst du es unter `/coach` fest | – |
+| `TRUST_PROXY` | `1`, wenn die App hinter einem Hoster-Proxy läuft (Render, Railway, nginx). Sonst teilen sich alle Kinder beim Schutz gegen Code-Raten eine Adresse | – |
 
 Tests ausführen: `npm test`
 
 ## 🌐 Online stellen
+
+**Am einfachsten mit Render:** Im Repository liegt eine fertige `render.yaml` (Server in Frankfurt, dauerhafter Speicher, alle Einstellungen gesetzt). Im Render-Dashboard „New“ → „Blueprint“ wählen, dieses Repository und den Branch auswählen, bestätigen. Fertig.
 
 Damit Kinder von zu Hause aus spielen können, muss die App auf einem Server laufen. Geeignet ist jeder Node.js-Hoster mit **dauerhaftem Speicher** für den `DATA_DIR`-Ordner, zum Beispiel ein kleiner VPS (Hetzner, netcup), Render oder Railway mit „Persistent Disk“ oder Fly.io mit Volume.
 
