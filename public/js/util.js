@@ -12,13 +12,16 @@ export const reverseDigits = n => (n >= 10 && n % 10 !== Math.floor(n / 10) % 10
 export function options(correct, distractors, filler, max = 4) {
   const out = [{ label: String(correct), correct: true, type: null }];
   const seen = new Set([String(correct)]);
-  for (const d of shuffle(distractors)) {
-    if (out.length >= max) break;
+  // Erst eindeutig machen (bei gleichem Wert gewinnt der zuerst genannte, spezifischere Fehlertyp),
+  // dann zufällig auswählen – so bleibt die Fehler-Diagnose verlässlich.
+  const uniq = [], seenD = new Set(seen);
+  for (const d of distractors) {
     if (d.v === null || d.v === undefined) continue;
     const key = String(d.v);
-    if (seen.has(key) || (typeof d.v === 'number' && d.v < 0)) continue;
-    seen.add(key); out.push({ label: key, correct: false, type: d.type });
+    if (seenD.has(key) || (typeof d.v === 'number' && d.v < 0)) continue;
+    seenD.add(key); uniq.push({ label: key, correct: false, type: d.type || 'sonstiges' });
   }
+  for (const d of shuffle(uniq).slice(0, max - 1)) { seen.add(d.label); out.push(d); }
   let guard = 0;
   while (out.length < max && guard++ < 200) {
     const v = filler();

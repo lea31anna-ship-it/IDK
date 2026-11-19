@@ -77,6 +77,19 @@ Normale Lern-Apps zeigen nur „richtig“ oder „falsch“. Lerniversum zeigt 
 
 ---
 
+## 🗂️ Organisation im Coach-Bereich
+
+| Bereich | Was du dort machst |
+|---|---|
+| **📊 Übersicht** | Kennzahlen, nächste Termine, offene Aufgaben, offene Honorare, Frühwarnsystem, Erinnerung an die Datensicherung |
+| **📅 Kalender** | Wochenansicht aller Termine; Termine einmalig oder wöchentlich (4–20 Wochen) anlegen, auch ohne Kind (z. B. Erstgespräch); Export als .ics für Google, Outlook oder Apple |
+| **🗓️ Stunden (pro Kind)** | Termine mit Status (geplant, gehalten, abgesagt, kurzfristig abgesagt und verrechnet) und **Stundenprotokoll** (Inhalte, Beobachtungen, Hausübung). Die Hausübung kann per Häkchen als Funkspruch ans Kind gehen. |
+| **🎯 Förderziele (pro Kind)** | Ziele mit Status; Vorschläge direkt aus dem Fehler-Radar; die Ziele erscheinen im Elternbericht |
+| **👤 Profil (pro Kind)** | Elternkontakt, Schule und Klasse, Förderschwerpunkte, individuelles Honorar, Einverständnis zur Datenverarbeitung. Diese Angaben gelangen nie in die Kinder-App oder in Links. |
+| **💶 Abrechnung** | Monatsübersicht der verrechenbaren Einheiten pro Kind, Bezahlt-Status, **Honorarnote** als Text, CSV-Export |
+| **✅ Aufgaben** | To-do-Liste mit Fälligkeit und optional zugeordnetem Kind; Überfälliges wird rot markiert |
+| **💾 Datensicherung** | Alles als Datei sichern und wiederherstellen; Hinweis, wenn die letzte Sicherung über 30 Tage alt ist |
+
 ## 🧑‍🏫 Das Coach-Dashboard
 
 - **Übersicht:** Kennzahlen, Frühwarnsystem und alle Kinder in einer Tabelle

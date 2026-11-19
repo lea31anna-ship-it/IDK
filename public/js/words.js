@@ -26,7 +26,8 @@ export function spellingVariants(word) {
   }
   const k = [...w].findIndex((c, idx) => idx > 0 && /[bcdfgklmnprstz]/.test(c) && !/[bcdfgklmnprstz]/.test(w[idx - 1] || ''));
   if (k > 0 && w[k] !== w[k + 1]) out.push({ v: w.slice(0, k) + w[k] + w.slice(k), type: 'doppelkonsonant' });
-  return shuffle(out).filter((x, i, a) => a.findIndex(y => y.v === x.v) === i);
+  // Doppelte Varianten: die spezifischere Regel (steht weiter vorne) gewinnt, erst dann mischen
+  return shuffle(out.filter((x, i, a) => a.findIndex(y => y.v === x.v) === i));
 }
 
 // Lückenwort: die „knifflige Stelle“ des Wortes wird zur Lücke

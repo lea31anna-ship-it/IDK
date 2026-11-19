@@ -8,6 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION } from './public/js/curriculum.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg } from './public/js/org-model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -21,6 +22,7 @@ const emptyDb = () => ({
   coach: null, // { salt, hash }
   settings: { practiceName: '', coachName: '', contactUrl: '', welcome: '' },
   kids: [],
+  org: cleanOrg({ rate: 50 }),
 });
 let db = emptyDb();
 function loadDb() {
@@ -126,6 +128,7 @@ function kidSummary(k) {
     accuracy: tasks ? Math.round(100 * recent.reduce((a, s) => a + s.correct, 0) / tasks) : null,
     mood: moods.length ? Math.round(10 * moods.reduce((a, b) => a + b, 0) / moods.length) / 10 : null,
     unreadMessages: k.messages.filter(m => !m.read).length,
+    lessons: k.lessons || [], rate: k.profile?.rate ?? '', focus: k.profile?.focus || [], parent: k.profile?.parent || '',
   };
 }
 
@@ -224,9 +227,23 @@ async function api(req, res, url) {
       saveDb(); return send(res, 200, db.settings);
     }
   }
+  if (p === '/api/coach/org') {
+    if (m === 'GET') return send(res, 200, db.org || cleanOrg({}));
+    if (m === 'PUT') { db.org = cleanOrg({ ...(db.org || {}), ...(await readBody(req)) }); saveDb(); return send(res, 200, db.org); }
+  }
+  if (p === '/api/coach/restore' && m === 'POST') {
+    const b = await readBody(req);
+    const d = b.data || {};
+    if (!Array.isArray(d.kids)) return send(res, 400, { error: 'Das ist keine gültige Lerniversum-Sicherung.' });
+    db.kids = d.kids.filter(k => k && k.id && k.name).map(k => ({ progress: {}, sessions: [], errors: [], messages: [], notes: '', unlocked: [...DEFAULT_UNLOCKED], autoAdvance: true, ...k, code: k.code && /^[A-Z]+-\d{4}$/.test(k.code) ? k.code : newCode() }));
+    if (d.settings) db.settings = { ...db.settings, ...d.settings };
+    if (d.org) db.org = cleanOrg(d.org);
+    saveDb(); return send(res, 200, { ok: true, kids: db.kids.length });
+  }
   if (p === '/api/coach/export' && m === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="lerniversum-backup-${now().slice(0, 10)}.json"` });
-    return res.end(JSON.stringify({ exportedAt: now(), settings: db.settings, kids: db.kids }, null, 1));
+    db.org.lastBackup = now(); saveDb();
+    return res.end(JSON.stringify({ app: 'lerniversum', exportedAt: now(), settings: db.settings, org: db.org, kids: db.kids }, null, 1));
   }
   if (p === '/api/coach/overview' && m === 'GET') {
     return send(res, 200, { kids: db.kids.map(k => ({ ...kidSummary(k), recentSessions: k.sessions.filter(s => Date.now() - Date.parse(s.ts) < 1000 * 60 * 60 * 24 * 14) })) });
@@ -239,7 +256,7 @@ async function api(req, res, url) {
     db.kids.push(k); saveDb();
     return send(res, 200, k);
   }
-  const km = /^\/api\/coach\/kids\/([a-f0-9]+)(\/[a-z]+)?$/.exec(p);
+  const km = /^\/api\/coach\/kids\/([a-z0-9]+)(\/[a-z]+)?$/.exec(p);
   if (km) {
     const k = db.kids.find(x => x.id === km[1]);
     if (!k) return send(res, 404, { error: 'Kind nicht gefunden' });
@@ -253,6 +270,9 @@ async function api(req, res, url) {
       if (b.autoAdvance !== undefined) k.autoAdvance = !!b.autoAdvance;
       if (b.notes !== undefined) k.notes = clip(b.notes, 20000);
       if (Array.isArray(b.wordLists)) k.wordLists = b.wordLists.slice(0, 20).map((l, i) => ({ id: clip(l.id || 'l' + i, 20), name: clip(l.name, 40) || 'Lernwörter', words: (Array.isArray(l.words) ? l.words : []).slice(0, 60).map(w => clip(w, 30)).filter(Boolean) }));
+      if (b.profile !== undefined) k.profile = cleanProfile(b.profile);
+      if (b.goals !== undefined) k.goals = cleanGoals(b.goals);
+      if (b.lessons !== undefined) k.lessons = cleanLessons(b.lessons);
       if (b.reward !== undefined) k.reward = b.reward && b.reward.text ? { goal: Math.min(Math.max(Number(b.reward.goal) || 5, 1), 30), text: clip(b.reward.text, 120) } : null;
       saveDb(); return send(res, 200, k);
     }

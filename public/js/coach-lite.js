@@ -5,6 +5,7 @@ import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName, encodeExtra, linkExtra } from './codec.js';
 import { parseWordInput } from './words.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg } from './org-model.js';
 
 let KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
 const MAX_SESSIONS = 400, MAX_ERRORS = 600;
@@ -26,17 +27,19 @@ async function dbStore() {
   return {
     async all() {
       const snap = await col.get();
-      const kids = [], settings = {};
+      const kids = [], settings = {}; let org = null;
       for (const d of snap.docs) {
         const v = d.data() || {};
         if (d.id === 'settings') Object.assign(settings, v);
+        else if (d.id === 'org') org = v;
         else if (d.id.startsWith('kid-')) kids.push(v);
       }
-      return { kids, settings };
+      return { kids, settings, org };
     },
     putKid: k => col.doc('kid-' + k.id).set(JSON.parse(JSON.stringify(k))),
     delKid: id => col.doc('kid-' + id).delete(),
     putSettings: s => col.doc('settings').set(s),
+    putOrg: o => col.doc('org').set(JSON.parse(JSON.stringify(o))),
     async getPin() { const d = await col.doc('pin').get(); return d.exists ? d.data() : null; },
     putPin: rec => col.doc('pin').set(rec),
   };
@@ -50,13 +53,14 @@ function localStore() {
     async putKid(k) { const v = get(); v.kids = v.kids.filter(x => x.id !== k.id).concat(k); put(v); },
     async delKid(id) { const v = get(); v.kids = v.kids.filter(x => x.id !== id); put(v); },
     async putSettings(s) { const v = get(); v.settings = s; put(v); },
+    async putOrg(o) { const v = get(); v.org = o; put(v); },
     async getPin() { return get().pin || null; },
     async putPin(rec) { const v = get(); v.pin = rec; put(v); },
   };
 }
 
 // ---------- Daten ----------
-let state = { kids: [], settings: { practiceName: '', coachName: '', contactUrl: '', welcome: '' } };
+let state = { kids: [], settings: { practiceName: '', coachName: '', contactUrl: '', welcome: '' }, org: cleanOrg({ rate: 50 }) };
 const byId = id => state.kids.find(k => k.id === id) || err('Kind nicht gefunden');
 function recode(k) { k.code = encodeKidCode({ name: k.name, id: k.num, avatar: Math.max(0, AVATARS.indexOf(k.avatar)), autoAdvance: k.autoAdvance, unlocked: k.unlocked }); return k; }
 async function save(k) {
@@ -82,6 +86,7 @@ function summary(k) {
     accuracy: tasks ? Math.round(100 * recent.reduce((a, s) => a + s.correct, 0) / tasks) : null,
     mood: moods.length ? Math.round(10 * moods.reduce((a, b) => a + b, 0) / moods.length) / 10 : null,
     unreadMessages: 0, recentSessions: k.sessions.filter(s => daysAgo(s.ts) < 14),
+    lessons: k.lessons || [], rate: k.profile?.rate ?? '', focus: k.profile?.focus || [], parent: k.profile?.parent || '',
   };
 }
 
@@ -126,6 +131,30 @@ async function call(path, { method = 'GET', body = {} } = {}) {
     return state.settings;
   }
   if (path === '/api/coach/logout') return { ok: true };
+  if (path === '/api/coach/org') {
+    if (method === 'PUT') { state.org = cleanOrg({ ...state.org, ...body }); await store.putOrg(state.org); }
+    return state.org;
+  }
+  if (path === '/api/coach/backup') { // Sicherung als JSON-Text
+    state.org.lastBackup = now(); await store.putOrg(state.org);
+    return { app: 'lerniversum', exportedAt: now(), settings: state.settings, org: state.org, kids: state.kids };
+  }
+  if (path === '/api/coach/restore') {
+    const d = body.data || {};
+    if (!Array.isArray(d.kids)) err('Das ist keine gültige Lerniversum-Sicherung.');
+    for (const k of state.kids) await store.delKid(k.id);
+    state.kids = [];
+    for (const raw of d.kids.filter(k => k && k.name)) {
+      const num = Number(raw.num) || freeNum();
+      const k = { ...newKid(raw.name, raw.avatar, num), ...raw, num, id: 'k' + num };
+      for (const f of ['progress']) k[f] ||= {};
+      for (const f of ['sessions', 'errors', 'messages', 'unlocked']) k[f] = Array.isArray(k[f]) ? k[f] : [];
+      recode(k); state.kids.push(k); await save(k);
+    }
+    if (d.settings) { state.settings = { ...state.settings, ...d.settings }; await store.putSettings(state.settings); }
+    if (d.org) { state.org = cleanOrg(d.org); await store.putOrg(state.org); }
+    return { ok: true, kids: state.kids.length };
+  }
   if (path === '/api/coach/import') return importReport(body.text);
   if (path === '/api/coach/kids' && method === 'POST') {
     const name = String(body.name || '').trim().slice(0, 40);
@@ -143,6 +172,9 @@ async function call(path, { method = 'GET', body = {} } = {}) {
       if (Array.isArray(body.unlocked)) k.unlocked = [...new Set(body.unlocked.filter(id => PLANET_BY_ID[id]))];
       if (body.autoAdvance !== undefined) k.autoAdvance = !!body.autoAdvance;
       if (body.notes !== undefined) k.notes = String(body.notes).slice(0, 20000);
+      if (body.profile !== undefined) k.profile = cleanProfile(body.profile);
+      if (body.goals !== undefined) k.goals = cleanGoals(body.goals);
+      if (body.lessons !== undefined) k.lessons = cleanLessons(body.lessons);
       if (Array.isArray(body.wordLists)) k.wordLists = body.wordLists.slice(0, 12).map((l, i) => ({ id: String(l.id || 'l' + i).slice(0, 20), name: String(l.name || 'Lernwörter').slice(0, 40), words: parseWordInput((l.words || []).join('\n')).slice(0, 40) }));
       if (body.reward !== undefined) k.reward = body.reward?.text ? { goal: Math.min(Math.max(Number(body.reward.goal) || 5, 1), 30), text: String(body.reward.text).slice(0, 120) } : null;
       recode(k); return save(k);
@@ -171,6 +203,7 @@ export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {})
       const all = await store.all();
       state.kids = all.kids || [];
       state.settings = { ...state.settings, ...(all.settings || {}) };
+      if (all.org) state.org = cleanOrg(all.org);
     } catch (e) {
       hostEl.innerHTML = `<p style="padding:24px">Die Daten konnten nicht geladen werden (${String(e.message || e.code || e)}). Bitte Seite neu laden.</p>`;
       return;
@@ -181,6 +214,11 @@ export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {})
   await pinGate(hostEl, store);
   const lite = {
     call, kidLink, kidAppUrl: KID_APP_URL, local: !!store.local, onExit,
+    async saveFile(filename, data) {
+      const dl = await window.claude?.use?.('downloads');
+      if (!dl) throw new Error('Download ist hier nicht verfügbar. Bitte den Text kopieren.');
+      await dl.save({ filename, data });
+    },
     async changePin() {
       const done = await changePin(hostEl, store);
       start(lite, hostEl);

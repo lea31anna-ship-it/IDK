@@ -200,3 +200,53 @@
 .lv-coach .wl-edit { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0; display: grid; gap: 8px; }
 .lv-coach .wl-edit textarea { min-height: 110px; }
 .lv-coach input[type=number] { padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }
+
+/* ---------- Organisation ---------- */
+.lv-coach .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+.lv-coach .grid3 .card { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.lv-coach .grid3 .card > .btn { align-self: flex-start; margin-top: auto; }
+.lv-coach .mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lv-coach .mini-list li.overdue { color: var(--bad); }
+.lv-coach .org-ev { border: 0; background: none; padding: 4px 0; text-align: left; cursor: pointer; width: 100%; }
+.lv-coach .org-ev:hover { color: var(--brand); }
+.lv-coach .big-num { font-size: 1.9em; font-weight: 800; margin: 0; }
+.lv-coach .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font-size: .75em; text-align: center; margin-left: auto; }
+.lv-coach .nav button { justify-content: flex-start; }
+.lv-coach .org-link { margin-bottom: 12px; }
+.lv-coach .cal-nav { margin-bottom: 12px; }
+.lv-coach .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.lv-coach .cal-day { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 160px; }
+.lv-coach .cal-day.today { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.lv-coach .cal-day h3 { margin: 0; font-size: .85em; color: var(--text-2); }
+.lv-coach .cal-ev { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid var(--border); border-left: 4px solid var(--series-1); background: var(--surface-2); border-radius: 8px; padding: 6px 8px; cursor: pointer; font-size: .82em; }
+.lv-coach .cal-ev.st-gehalten { border-left-color: var(--good); }
+.lv-coach .cal-ev.st-abgesagt { opacity: .55; border-left-color: var(--muted); text-decoration: line-through; }
+.lv-coach .cal-ev.st-kurzfristig { border-left-color: var(--warn); }
+.lv-coach .ce-time { font-weight: 700; }
+.lv-coach .ce-who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-coach .ce-meta .tag { font-size: .72em; }
+.lv-coach .cal-add { margin-top: auto; border: 1px dashed var(--border); background: none; border-radius: 8px; padding: 4px; cursor: pointer; color: var(--muted); }
+.lv-coach .cal-add:hover { border-color: var(--brand); color: var(--brand); }
+.lv-coach .tag.st-gehalten { background: var(--good-bg); color: var(--good); }
+.lv-coach .tag.st-kurzfristig { background: var(--warn-bg); color: var(--warn); }
+.lv-coach .tag.st-abgesagt { background: var(--surface-2); color: var(--muted); }
+.lv-coach .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 14px; }
+.lv-coach dialog.wide { max-width: 640px; }
+.lv-coach details { margin: 8px 0; }
+.lv-coach summary { cursor: pointer; padding: 6px 0; }
+.lv-coach .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lv-coach .chip-check { display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-weight: 500; }
+.lv-coach .chip-check:has(input:checked) { background: var(--brand-soft); border-color: var(--brand); }
+.lv-coach .todo-list, .lv-coach .goal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lv-coach .todo, .lv-coach .goal { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.lv-coach .todo .switch { flex: 1; }
+.lv-coach .todo.done span { text-decoration: line-through; color: var(--muted); }
+.lv-coach .todo.overdue { border-color: var(--bad); }
+.lv-coach .todo-meta { display: flex; gap: 4px; flex-wrap: wrap; }
+.lv-coach .goal select { width: auto; }
+.lv-coach .goal-t { flex: 1; display: flex; flex-direction: column; }
+.lv-coach .goal-t small { color: var(--muted); }
+.lv-coach .goal.g-erreicht { background: var(--good-bg); }
+.lv-coach .bill table { margin: 8px 0; }
+@media (max-width: 1100px) { .lv-coach .cal-week { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+@media (max-width: 860px) { .lv-coach .grid3 { grid-template-columns: 1fr; } .lv-coach .cal-day { min-height: 0; } }

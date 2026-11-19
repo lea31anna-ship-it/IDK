@@ -3,6 +3,7 @@ import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnloc
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
 import { parseWordInput } from './words.js';
+import { initOrg, loadOrg, overviewOrgHtml, bindOverviewOrg, renderCalendar, renderTodos, renderBilling, renderBackup, tabProfile, tabGoals, tabLessons, goalsReportHtml } from './coach-org.js';
 let root = null, host = null, toastEl = null; // werden in start() gesetzt
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
@@ -48,6 +49,15 @@ function showCopy(title, text, hint = '') {
   d.querySelector('#cpb').onclick = () => copyText(text, ta);
   d.addEventListener('close', () => d.remove());
 }
+async function sendRadio(kidId, text) {
+  const k = await api(`/api/coach/kids/${kidId}/messages`, { method: 'POST', body: { text } });
+  if (S.kid?.id === kidId) S.kid = k;
+  if (S.lite) shareLink(k, text); else toast('Funkspruch gesendet');
+}
+async function saveFile(filename, data) {
+  if (S.lite) return S.lite.saveFile(filename, data);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data])); a.download = filename; a.click();
+}
 function copyText(text, fallbackEl) {
   try { navigator.clipboard.writeText(text).then(() => toast('Kopiert'), () => { fallbackEl?.select(); toast('Bitte markierten Text kopieren'); }); }
   catch { fallbackEl?.select(); toast('Bitte markierten Text kopieren'); }
@@ -89,6 +99,7 @@ async function boot() {
   try {
     const [ov, st] = await Promise.all([api('/api/coach/overview'), api('/api/coach/settings')]);
     S.kids = ov.kids; S.settings = st;
+    await loadOrg();
     render();
   } catch { /* renderLogin bereits ausgelöst */ }
 }
@@ -107,8 +118,7 @@ function render() {
         ${S.lite?.onExit ? '<button class="btn small exit-btn" id="exit">← Zur Lern-App</button>' : ''}
         <div class="collapsible">
           <nav class="nav">
-            <button data-v="overview" class="${S.view === 'overview' ? 'active' : ''}">📊 Übersicht</button>
-            <button data-v="settings" class="${S.view === 'settings' ? 'active' : ''}">⚙️ Einstellungen</button>
+            ${[['overview', '📊 Übersicht'], ['calendar', '📅 Kalender'], ['todos', '✅ Aufgaben'], ['billing', '💶 Abrechnung'], ['backup', '💾 Datensicherung'], ['settings', '⚙️ Einstellungen']].map(([v, l]) => `<button data-v="${v}" class="${S.view === v ? 'active' : ''}">${l}${v === 'todos' && openTodos() ? ` <span class="badge">${openTodos()}</span>` : ''}</button>`).join('')}
           </nav>
           <div class="row" style="justify-content:space-between"><span class="side-section">Kinder (${S.kids.length})</span><button class="btn small primary" id="add">+ Kind</button></div>
           <input type="text" id="search" placeholder="Suchen …" aria-label="Kind suchen">
@@ -133,8 +143,13 @@ function render() {
   const main = document.getElementById('main');
   if (S.view === 'overview') renderOverview(main);
   else if (S.view === 'settings') renderSettings(main);
+  else if (S.view === 'calendar') renderCalendar(main);
+  else if (S.view === 'todos') renderTodos(main);
+  else if (S.view === 'billing') renderBilling(main);
+  else if (S.view === 'backup') renderBackup(main);
   else if (S.view === 'kid' && S.kid) renderKid(main);
 }
+const openTodos = () => (S.org?.todos || []).filter(t => !t.done).length;
 const relDays = ts => { const d = daysAgo(ts); return d === 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`; };
 
 // ---------- Übersicht & Frühwarnsystem ----------
@@ -168,6 +183,7 @@ function renderOverview(main) {
       <div class="stat"><div class="v">${week.length}</div><div class="l">Missionen in 7 Tagen</div></div>
       <div class="stat"><div class="v">${avgMood ? moodE(Math.round(avgMood)) + ' ' + avgMood.toFixed(1) : '–'}</div><div class="l">Ø Stimmung nach Missionen (1–4)</div></div>
     </div>
+    ${overviewOrgHtml()}
     <div class="grid2">
       <div class="card"><h2>🔔 Frühwarnsystem</h2>
         ${alerts.length ? alerts.slice(0, 12).map((a, i) => `<button class="alert ${a.lvl}" data-i="${i}"><span class="ic">${a.ic}</span><span>${a.txt}</span></button>`).join('') : '<p class="muted">Alles ruhig im All. Hier erscheinen Hinweise, wenn ein Kind festhängt, sich unwohl fühlt, lange nicht geübt hat – oder ein Lob verdient.</p>'}
@@ -178,7 +194,8 @@ function renderOverview(main) {
           <li><strong>Gefühls-Kompass:</strong> Kinder geben vor und nach jeder Mission ihre Stimmung an. So siehst du Rechen- und Leseangst, nicht nur Ergebnisse.</li>
           <li><strong>Funksprüche:</strong> Persönliche Nachrichten von dir, die das Kind beim nächsten Start vorgelesen bekommt.</li>
           <li><strong>Gezielt freischalten:</strong> Nur die Themen, die ihr gerade gemeinsam erarbeitet.</li>
-          <li><strong>Elternbericht</strong> per Klick – druckbar oder als PDF.</li>
+          <li><strong>Elternbericht</strong> per Klick, verständlich für Eltern.</li>
+          <li><strong>Organisation:</strong> Kalender, Stundenprotokoll, Förderziele, Abrechnung mit Honorarnote und Aufgaben – alles an einem Ort.</li>
         </ul>
       </div>
     </div>
@@ -193,6 +210,7 @@ function renderOverview(main) {
     </div>`;
   document.getElementById('add2').onclick = newKidDialog;
   document.getElementById('imp')?.addEventListener('click', importDialog);
+  bindOverviewOrg(main);
   main.querySelectorAll('tr.click').forEach(r => r.onclick = () => openKid(r.dataset.id));
   main.querySelectorAll('.alert').forEach(b => b.onclick = () => { const a = alerts[Number(b.dataset.i)]; openKid(a.kid, a.tab || 'overview'); });
 }
@@ -229,7 +247,7 @@ async function openKid(id, tab = 'overview') {
 }
 async function patchKid(body) { S.kid = await api('/api/coach/kids/' + S.kid.id, { method: 'PATCH', body }); await refreshKids(); }
 
-const TABS = [['overview', '📈 Überblick'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '📡 Funkspruch'], ['notes', '📝 Notizen'], ['report', '📄 Elternbericht']];
+const TABS = [['overview', '📈 Überblick'], ['lessons', '🗓️ Stunden'], ['goals', '🎯 Förderziele'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '📡 Funkspruch'], ['notes', '📝 Notizen'], ['profile', '👤 Profil'], ['report', '📄 Elternbericht']];
 function renderKid(main) {
   const k = S.kid;
   main.innerHTML = `
@@ -253,7 +271,7 @@ function renderKid(main) {
   }
   document.getElementById('edit').onclick = editKidDialog;
   const t = document.getElementById('tab');
-  ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, words: tabWords, notes: tabNotes, report: tabReport })[S.tab](t, k);
+  ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, words: tabWords, notes: tabNotes, lessons: tabLessons, goals: tabGoals, profile: tabProfile, report: tabReport })[S.tab](t, k);
 }
 
 function tabOverview(el, k) {
@@ -540,6 +558,7 @@ function tabReport(el, k) {
       <p>${strengths.length ? `Mit voller Punktzahl gemeistert: ${strengths.map(p => esc(p.name) + ' (' + esc(p.topic) + ')').join('; ')}.` : 'Die ersten Planeten werden gerade erobert – jeder Versuch zählt!'}</p>
       <h3>🌱 Daran arbeiten wir</h3>
       ${types.length ? `<ul>${types.slice(0, 3).map(([t]) => `<li>${esc(PARENT_WORDS[t] || ERROR_TYPES[t]?.label || t)}</li>`).join('')}</ul>` : '<p>Im Moment zeigen sich keine typischen Fehlermuster. Weiter so!</p>'}
+      ${goalsReportHtml(k)}
       <h3>💛 Gefühl beim Lernen</h3>
       <p>${moodGain === null ? 'Noch keine Angaben.' : moodGain > 0.15 ? `Nach dem Üben fühlt sich ${esc(k.name)} im Schnitt <strong>besser</strong> als vorher – ein schönes Zeichen für wachsendes Selbstvertrauen.` : moodGain < -0.15 ? `Nach dem Üben ist die Stimmung manchmal gedrückt. Bitte loben Sie besonders die Anstrengung, nicht nur das Ergebnis.` : 'Die Stimmung bleibt beim Üben stabil.'}</p>
       <h3>🏠 Tipps für zu Hause</h3>
@@ -668,6 +687,7 @@ export function start(lite = null, hostEl = null) {
   host = hostEl || document.querySelector('.lv-coach');
   host.innerHTML = '<div class="lv-root"></div><div class="lv-toast" role="status"></div>';
   root = host.firstElementChild; toastEl = host.lastElementChild;
+  initOrg({ S, api, esc, ask, toast, showCopy, copyText, host, refreshKids, render, openKid, patchKid, saveFile, sendRadio });
   if (lite) boot(); else S.token ? boot() : renderLogin();
 }
 if (document.querySelector('.lv-coach[data-auto]')) start(); // Server-Version (coach.html)

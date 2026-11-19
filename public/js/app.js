@@ -957,7 +957,9 @@ function openSettings() {
 // ---------- Start ----------
 (async function init() {
   applySettings();
+  const webApp = !!document.querySelector('meta[name="sh-kid-app"]'); // Web-App-Version ohne eigenen Server
   try {
+    if (webApp) throw new Error('kein Server');
     state.info = await apiCall('/api/info');
     state.server = state.info.serverMode === true; // ohne eigenen Server (z. B. statisch gehostet) nur freie Version
   } catch { state.server = false; state.info = {}; }
