@@ -18,8 +18,8 @@ export const TROPHIES = [
   { id: 'planets5', icon: '🧭', name: 'Entdecker-Kompass', desc: '5 Planeten geschafft', test: (s, p) => done(p) >= 5 },
   { id: 'planets20', icon: '🗺️', name: 'Sternenkarte', desc: '20 Planeten geschafft', test: (s, p) => done(p) >= 20 },
   { id: 'galaxy', icon: '👑', name: 'Galaxie-Krone', desc: 'Alle Planeten einer Galaxie geschafft', test: (s, p) => GALAXIES.some(g => planetsOf(g.id).every(x => (p[x.id]?.bestStars || 0) >= 1)) },
-  { id: 'levelup', icon: '🌠', name: 'Stufen-Sprung', desc: 'Einen Planeten aus „VS 3–4“ oder „Unterstufe“ geschafft', test: (s, p) => PLANETS.some(x => ['vs34', 'us'].includes(GALAXIES.find(g => g.id === x.galaxy)?.level) && (p[x.id]?.bestStars || 0) >= 1) },
-  { id: 'foerder5', icon: '🌈', name: 'Förder-Stern', desc: '5 Planeten in der Förderwelt geschafft', test: (s, p) => PLANETS.filter(x => GALAXIES.find(g => g.id === x.galaxy)?.level === 'foerder' && (p[x.id]?.bestStars || 0) >= 1).length >= 5 },
+  { id: 'levelup', icon: '🌠', name: 'Stufen-Sprung', desc: 'Einen Planeten aus einem fortgeschrittenen Thema geschafft (ab dem 4. Thema eines Fachs)', test: (s, p) => PLANETS.some(x => { const g = GALAXIES.find(y => y.id === x.galaxy); const chain = GALAXIES.filter(y => y.level === g.level); return chain.indexOf(g) >= 3 && (p[x.id]?.bestStars || 0) >= 1; }) },
+  { id: 'foerder5', icon: '🌈', name: 'Förder-Stern', desc: '5 Planeten aus den Grundlagen geschafft (Mengen & Kraft der 5, Laute & Buchstaben)', test: (s, p) => PLANETS.filter(x => ['mengen5', 'laute'].includes(x.galaxy) && (p[x.id]?.bestStars || 0) >= 1).length >= 5 },
   { id: 'jump', icon: '🌌', name: 'Hyperraum-Sprung', desc: 'Eine Galaxie ganz geschafft und zur nächsten weitergereist', test: (s, p) => GALAXIES.some(g => planetsOf(g.id).every(x => (p[x.id]?.bestStars || 0) >= 1) && GALAXIES.some(n => n !== g && n.level === g.level && n.short === g.short && (p[planetsOf(n.id)[0].id]?.attempts || 0) > 0)) },
   { id: 'words1', icon: '📚', name: 'Wort-Schatz', desc: 'Lernwörter geübt', test: s => s.words >= 1 },
   { id: 'words10', icon: '📖', name: 'Wort-Pokal', desc: '10-mal Lernwörter geübt', test: s => s.words >= 10 },
@@ -107,7 +107,7 @@ export function sound(kind) {
   } catch { /* Audio nicht verfügbar */ }
 }
 
-export const ACTIVITY_NAMES = { lernwoerter: 'Lernwörter-Training', station: 'Raumstation-Quiz' };
+export const ACTIVITY_NAMES = { lernwoerter: 'Lernwörter-Training', station: 'Raumstation-Quiz', einstufung: 'Einstufungstest' };
 export const activityName = id => PLANET_BY_ID[id]?.name || ACTIVITY_NAMES[id] || id;
 
 // ---------- Personalisierung ----------

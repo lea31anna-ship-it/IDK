@@ -256,3 +256,4 @@
 .lv-coach .emoji-pick button:hover { border-color: var(--border); }
 .lv-coach .medals { white-space: nowrap; font-size: .95em; }
 .lv-coach .medals .off { filter: grayscale(1); opacity: .3; }
+.lv-coach .msg-in { background: var(--brand-soft); margin-left: 24px; }

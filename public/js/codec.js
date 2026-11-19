@@ -1,4 +1,3 @@
-import { planetsOf } from './curriculum.js';
 // Serverlose Variante: Zugangscodes und Fortschrittsberichte als Text.
 // - Zugangscode (Coach -> Kind): Name + 13 Zeichen; enthält freigeschaltete Planeten,
 //   Avatar, Kind-ID und Prüfsumme. Als Link: #k-<name>-<code>[-m<funkspruch>]
@@ -15,9 +14,25 @@ export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 
   'kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus', 'kps_sonne',
   'br_erweitern', 'br_vergleich', 'br_minus', 'br_von', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch', 'br_sonne',
   'f_bp', 'f_dt', 'f_gk', 'f_fwv', 'f_eiie', 'f_umlaut', 'f_lautpos', 'f_lautsonne',
-  'z_mehr', 'z_nachbar', 'z_groesser', 'z_stellen', 'z_strahl', 'z_doppel', 'z_freunde', 'z_sonne'];
+  'z_mehr', 'z_nachbar', 'z_groesser', 'z_stellen', 'z_strahl', 'z_doppel', 'z_freunde', 'z_sonne',
+  'k5_fuenfer', 'k5_finger', 'k5_plus5', 'k5_zerlegen', 'k5_zwanzig', 'k5_sonne', 'zr10_ergaenzen', 'zr10_platzhalter', 'zr10_sonne', 'zue_bis10', 'zue_zerlegen', 'zue_unter', 'zue_sonne',
+  'einstufung'];
 // v4-Codes speichern Freischaltungen pro Galaxie. NUR HINTEN ANHÄNGEN!
-export const GALAXY_CODE = ['zahlen', 'buchstaben', 'rechnen34', 'deutsch34', 'mathe58', 'deutsch58', 'klapustri', 'brueche', 'laute', 'zahleninsel'];
+// Feste Planeten-Blöcke für v4-Codes – unabhängig davon, wie die Galaxien in der App angeordnet sind.
+// NIE ändern, nur neue Blöcke hinten anhängen (neue Planeten -> neuer Block).
+export const CODE_BLOCKS = [
+  ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 'minus20', 'mal1', 'mal2', 'mal3', 'mal4', 'mal5', 'mal6', 'mal7', 'mal8', 'mal9', 'mal10', 'geteilt', 'malmix'],
+  ['anlaut', 'vokale', 'silben', 'reime', 'bdpq', 'lesen', 'schreiben'],
+  ['plus100', 'minus100', 'malzehner', 'halbschriftlich', 'divrest', 'plus1000', 'minus1000', 'groessen', 'sachaufgaben'],
+  ['nomen', 'mehrzahl', 'doppel', 'ie', 'dehnung', 'trennen', 'saetze'],
+  ['negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung'],
+  ['wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma'],
+  ['kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus', 'kps_sonne'],
+  ['br_erweitern', 'br_vergleich', 'br_minus', 'br_von', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch', 'br_sonne'],
+  ['f_bp', 'f_dt', 'f_gk', 'f_fwv', 'f_eiie', 'f_umlaut', 'f_lautpos', 'f_lautsonne'],
+  ['z_mehr', 'z_nachbar', 'z_groesser', 'z_stellen', 'z_strahl', 'z_doppel', 'z_freunde', 'z_sonne'],
+  ['k5_fuenfer', 'k5_finger', 'k5_plus5', 'k5_zerlegen', 'k5_zwanzig', 'k5_sonne', 'zr10_ergaenzen', 'zr10_platzhalter', 'zr10_sonne', 'zue_bis10', 'zue_zerlegen', 'zue_unter', 'zue_sonne'],
+];
 // Reihenfolge ist Teil des Codes: NUR HINTEN ANHÄNGEN (max. 128)!
 export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟',
   // Tiere
@@ -53,7 +68,7 @@ function encodeV4(nm, id, avatar, autoAdvance, unlocked) {
   const bits = [];
   const put = (v, w) => { for (let i = w - 1; i >= 0; i--) bits.push((v >> i) & 1); };
   put(id & 0xffff, 16); put(avatar & 127, 7); put(autoAdvance ? 1 : 0, 1);
-  const groups = GALAXY_CODE.map((g, gi) => ({ gi, list: planetsOf(g).map(p => unlocked.includes(p.id)) })).filter(x => x.list.some(Boolean));
+  const groups = CODE_BLOCKS.map((ids, gi) => ({ gi, list: ids.map(id => unlocked.includes(id)) })).filter(x => x.list.some(Boolean));
   put(groups.length, 5);
   for (const g of groups) { const len = g.list.lastIndexOf(true) + 1; put(g.gi, 5); put(len, 5); g.list.slice(0, len).forEach(b => bits.push(b ? 1 : 0)); }
   const body = bits.join('');
@@ -73,7 +88,7 @@ function decodeV4(nm, raw) {
     const chk = take(8), start = pos;
     const id = take(16), avatar = take(7), auto = take(1), ng = take(5), unlocked = [];
     for (let g = 0; g < ng; g++) {
-      const gi = take(5), len = take(5), planets = GALAXY_CODE[gi] ? planetsOf(GALAXY_CODE[gi]) : [];
+      const gi = take(5), len = take(5), planets = (CODE_BLOCKS[gi] || []).map(id => ({ id }));
       for (let i = 0; i < len; i++) if (take(1) && planets[i]) unlocked.push(planets[i].id);
     }
     if (/1/.test(bits.slice(pos)) && bits.length - pos >= 5) return null; // mehr als nur Füllbits übrig
@@ -147,12 +162,13 @@ export async function decodeExtra(str) {
   } catch { return null; }
 }
 // Für den Link nur das Nötigste: Listen-Namen und Wörter, Belohnungsziel
-export const linkExtra = k => {
+export const linkExtra = (k, settings = {}) => {
   const w = (k.wordLists || []).filter(l => l.words?.length).map(l => [l.name, l.words]);
   const r = k.reward?.text ? [k.reward.goal || 5, k.reward.text] : null;
-  return w.length || r ? { w, r } : null;
+  const c = settings.phone || settings.email ? [settings.coachName || '', settings.phone || '', settings.email || ''] : null; // Kontakt der Coachin für „Nachricht an Coachin“
+  return w.length || r || c ? { w, r, ...(c ? { c } : {}) } : null;
 };
-export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null });
+export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null, contact: x?.c ? { name: String(x.c[0] || '').slice(0, 60), phone: String(x.c[1] || '').slice(0, 40), email: String(x.c[2] || '').slice(0, 120) } : null });
 export function parseKidHash(hash) {
   const m = /^#?k-([a-z]+)-([0-9a-z]{4,60})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
@@ -180,7 +196,7 @@ export async function encodeReport(kid) {
     p: Object.fromEntries(Object.entries(kid.progress || {}).filter(([k]) => idx(k) >= 0).map(([k, p]) => [idx(k), [p.bestStars, p.attempts, p.correct, p.total, p.lastPlayed ? min(p.lastPlayed) : 0, ...(p.lv ? [p.lv[1] || 0, p.lv[2] || 0, p.lv[3] || 0] : [])]])),
     s: (kid.sessions || []).slice(-80).map(s => [min(s.ts), idx(s.planetId), s.correct, s.total, s.moodBefore || 0, s.moodAfter || 0, s.tips || 0, s.durationSec || 0, s.level || 0]),
     e: (kid.errors || []).slice(-120).map(e => [min(e.ts), idx(e.planetId), e.type, e.task, e.given, e.expected]),
-    av: kid.look?.avatar || '', t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
+    av: kid.look?.avatar || '', pl: kid.placement || null, t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
   };
   let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = 'J';
   if (typeof CompressionStream !== 'undefined') { bytes = await pipe(bytes, new CompressionStream('deflate-raw')); z = 'Z'; }
@@ -198,7 +214,7 @@ export async function decodeReport(text) {
     id: o.id, name: o.n, code: o.c,
     progress: Object.fromEntries(Object.entries(o.p || {}).filter(([i]) => pid(i)).map(([i, a]) => [pid(i), { bestStars: a[0], attempts: a[1], correct: a[2], total: a[3], lastPlayed: a[4] ? iso(a[4]) : null, ...(a.length > 5 ? { lv: { 1: a[5], 2: a[6], 3: a[7] } } : {}) }])),
     sessions: (o.s || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), correct: a[2], total: a[3], stars: a[3] ? (a[2] / a[3] >= 1 ? 3 : a[2] / a[3] >= .9 ? 2 : a[2] / a[3] >= .7 ? 1 : 0) : 0, moodBefore: a[4] || null, moodAfter: a[5] || null, tips: a[6], durationSec: a[7], level: a[8] || null })),
-    trophies: o.t || {}, stats: o.st || null, avatar: AVATARS.includes(o.av) ? o.av : null,
+    trophies: o.t || {}, stats: o.st || null, placement: o.pl || null, avatar: AVATARS.includes(o.av) ? o.av : null,
     errors: (o.e || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), type: String(a[2]), task: String(a[3]).slice(0, 60), given: String(a[4]).slice(0, 40), expected: String(a[5]).slice(0, 40) })),
   };
 }

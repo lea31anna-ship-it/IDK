@@ -5,7 +5,7 @@ import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName, encodeExtra, linkExtra } from './codec.js';
 import { parseWordInput } from './words.js';
-import { cleanProfile, cleanGoals, cleanLessons, cleanOrg } from './org-model.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog } from './org-model.js';
 
 let KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
 const MAX_SESSIONS = 400, MAX_ERRORS = 600;
@@ -113,6 +113,7 @@ async function importReport(text) {
   }
   k.trophies = { ...(k.trophies || {}), ...(r.trophies || {}) };
   if (r.stats) k.stats = r.stats;
+  if (r.placement) k.placement = { ...(k.placement || {}), ...r.placement };
   if (r.avatar && r.avatar !== k.avatar) { k.avatar = r.avatar; recode(k); } // vom Kind selbst gewählter Avatar
   const last = k.sessions.at(-1)?.ts;
   if (last && (!k.lastActive || last > k.lastActive)) k.lastActive = last;
@@ -126,7 +127,7 @@ async function call(path, { method = 'GET', body = {} } = {}) {
   if (path === '/api/coach/settings') {
     if (method === 'PUT') {
       const url = String(body.contactUrl || '').trim().slice(0, 300);
-      state.settings = { practiceName: String(body.practiceName || '').slice(0, 80), coachName: String(body.coachName || '').slice(0, 60), contactUrl: /^https?:\/\//i.test(url) ? url : '', welcome: String(body.welcome || '').slice(0, 400) };
+      state.settings = { practiceName: String(body.practiceName || '').slice(0, 80), coachName: String(body.coachName || '').slice(0, 60), contactUrl: /^https?:\/\//i.test(url) ? url : '', welcome: String(body.welcome || '').slice(0, 400), phone: String(body.phone || '').slice(0, 40), email: String(body.email || '').slice(0, 120) };
       await store.putSettings(state.settings);
     }
     return state.settings;
@@ -175,6 +176,7 @@ async function call(path, { method = 'GET', body = {} } = {}) {
       if (body.notes !== undefined) k.notes = String(body.notes).slice(0, 20000);
       if (body.profile !== undefined) k.profile = cleanProfile(body.profile);
       if (body.goals !== undefined) k.goals = cleanGoals(body.goals);
+      if (body.contactLog !== undefined) k.contactLog = cleanContactLog(body.contactLog);
       if (body.lessons !== undefined) k.lessons = cleanLessons(body.lessons);
       if (Array.isArray(body.wordLists)) k.wordLists = body.wordLists.slice(0, 12).map((l, i) => ({ id: String(l.id || 'l' + i).slice(0, 20), name: String(l.name || 'Lernwörter').slice(0, 40), words: parseWordInput((l.words || []).join('\n')).slice(0, 40) }));
       if (body.reward !== undefined) k.reward = body.reward?.text ? { goal: Math.min(Math.max(Number(body.reward.goal) || 5, 1), 30), text: String(body.reward.text).slice(0, 120) } : null;
@@ -191,7 +193,7 @@ async function call(path, { method = 'GET', body = {} } = {}) {
   err('Nicht unterstützt');
 }
 
-async function kidLink(k, message) { return `${KID_APP_URL}#${kidHash(k.code, message, await encodeExtra(linkExtra(k)))}`; }
+async function kidLink(k, message) { return `${KID_APP_URL}#${kidHash(k.code, message, await encodeExtra(linkExtra(k, state.settings)))}`; }
 
 let booted = false;
 export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {}) {

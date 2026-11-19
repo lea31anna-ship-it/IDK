@@ -532,3 +532,34 @@ body[data-space="blau"] .topbar, body[data-space="gruen"] .topbar, body[data-spa
   .levels { display: grid; grid-template-columns: 1fr 1fr; }
   .level { white-space: normal; }
 }
+
+/* ---------- Fächer & Themen ---------- */
+.subjects { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 10px; }
+.subject { border: 2px solid var(--panel-border); background: rgba(255,255,255,.05); border-radius: 18px; padding: 10px; font-size: 1.15em; font-weight: 800; }
+.subject[aria-selected="true"] { border-color: var(--accent); background: rgba(255,207,77,.16); color: var(--accent); }
+.topic-head { display: flex; flex-direction: column; gap: 2px; margin: -4px 0 6px; padding: 0 4px; }
+.topic-head b { font-size: 1.1em; }
+.topic-head span { color: var(--muted); font-size: .8em; }
+.placement-cta { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 2px dashed rgba(122,215,255,.6); background: rgba(122,215,255,.08); border-radius: 16px; padding: 10px 14px; margin-bottom: 10px; }
+.placement-cta span:first-child { font-size: 1.6em; }
+.placement-cta small { display: block; color: var(--muted); }
+
+/* Fingerbilder (Kraft der 5) */
+.hands { display: flex; gap: 22px; justify-content: center; }
+.hand { position: relative; width: 104px; height: 128px; }
+.palm { position: absolute; left: 10px; right: 6px; bottom: 0; height: 56px; border-radius: 22px 22px 30px 30px; background: #f2c49b; box-shadow: inset -4px -4px 0 rgba(0,0,0,.12); }
+.finger { position: absolute; bottom: 44px; width: 16px; height: 26px; border-radius: 9px 9px 4px 4px; background: #e2ad80; transition: height .2s; }
+.finger.up { height: 70px; background: #f2c49b; box-shadow: inset -3px 0 0 rgba(0,0,0,.1); }
+.finger.f0 { left: 14px; } .finger.f1 { left: 33px; } .finger.f2 { left: 52px; } .finger.f3 { left: 71px; }
+.finger.f4 { left: -2px; bottom: 22px; transform: rotate(-35deg); transform-origin: bottom center; }
+.finger.f4.up { height: 50px; }
+.hand:last-child { transform: scaleX(-1); }
+.pl-list { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 6px; text-align: left; }
+.pl-list li { display: grid; grid-template-columns: 1.6em 1fr auto; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.06); }
+.pl-list small { color: var(--muted); }
+.num-display.neutral { border-color: rgba(122,215,255,.6); }
+.small-link { min-height: 36px; font-size: .8em; padding: 4px 12px; }
+.check-row { display: flex; gap: 8px; align-items: center; margin: 10px 0; font-size: .9em; }
+.check-row input { width: 22px; height: 22px; }
+.mail-item { text-align: left; width: 100%; color: inherit; font: inherit; }
+.mail-item small { color: var(--muted); }

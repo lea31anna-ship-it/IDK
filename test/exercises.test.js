@@ -4,7 +4,7 @@ import { PLANETS, ERROR_TYPES, isUnlocked, starsFor } from '../public/js/curricu
 import { generateMission } from '../public/js/exercises.js';
 
 // Aufgaben mit bewusst nur 2–3 Antworten (z. B. „b oder p?“, „Welche Zahl ist größer?“)
-const FEW = ['dasdass', 'slaute', 'wortarten', 'grossklein2', 'br_vergleich', 'br_sonne', 'z_mehr', 'z_groesser', 'z_sonne'];
+const FEW = ['zue_zerlegen', 'zue_unter', 'zue_sonne', 'dasdass', 'slaute', 'wortarten', 'grossklein2', 'br_vergleich', 'br_sonne', 'z_mehr', 'z_groesser', 'z_sonne'];
 test('jeder Planet erzeugt gültige Missionen', () => {
   for (const p of PLANETS) {
     for (let run = 0; run < 40; run++) {
@@ -51,8 +51,8 @@ test('Mathe-Antworten der höheren Stufen stimmen', () => {
 
 test('Freischalt-Logik', () => {
   assert.ok(isUnlocked('mengen', { mode: 'public' }));
-  assert.ok(!isUnlocked('zerlegen', { mode: 'public' }));
-  assert.ok(isUnlocked('zerlegen', { mode: 'public', progress: { mengen: { bestStars: 1 } } }));
+  assert.ok(!isUnlocked('k5_fuenfer', { mode: 'public' }));
+  assert.ok(isUnlocked('k5_fuenfer', { mode: 'public', progress: { mengen: { bestStars: 1 } } }));
   assert.ok(isUnlocked('mal7', { mode: 'kid', unlocked: ['mal7'] }));
   assert.ok(!isUnlocked('mal8', { mode: 'kid', unlocked: ['mal7'], progress: { mal7: { bestStars: 2, attempts: 1 } }, autoAdvance: false }));
   assert.ok(isUnlocked('mal8', { mode: 'kid', unlocked: ['mal7'], progress: { mal7: { bestStars: 2, attempts: 1 } }, autoAdvance: true }));

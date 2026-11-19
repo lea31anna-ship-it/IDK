@@ -49,3 +49,16 @@ export function cleanOrg(o = {}) {
   };
 }
 export const lessonRate = (kid, org) => (kid?.profile?.rate !== '' && kid?.profile?.rate != null ? Number(kid.profile.rate) : Number(org?.rate) || 0);
+
+// ---------- Kommunikation (WhatsApp / E-Mail) ----------
+/** Telefonnummer ins internationale Format für WhatsApp (Österreich als Standard: 0664… -> 43664…) */
+export function intlPhone(raw, cc = '43') {
+  let d = String(raw || '').replace(/[^\d+]/g, '');
+  if (d.startsWith('+')) d = d.slice(1); else if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = cc + d.slice(1);
+  return /^\d{8,15}$/.test(d) ? d : '';
+}
+export const waLink = (phone, text) => { const p = intlPhone(phone); return p ? `https://wa.me/${p}?text=${encodeURIComponent(text)}` : ''; };
+export const mailLink = (to, subject, body) => (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to || '') ? `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}` : '');
+export const cleanContactLog = (list = []) => (Array.isArray(list) ? list : []).slice(-300).map(x => ({
+  ts: String(x.ts || new Date().toISOString()).slice(0, 30), dir: x.dir === 'in' ? 'in' : 'out', via: ['whatsapp', 'email', 'kopiert', 'telefon', 'persönlich', 'funkspruch'].includes(x.via) ? x.via : 'kopiert', text: String(x.text || '').slice(0, 2000),
+})).filter(x => x.text);

@@ -134,6 +134,28 @@ Im Ordner `lite/` liegt eine Version, die **ohne eigenen Server** läuft (`sh li
 
 Unterschied zur Server-Version: Ergebnisse kommen nicht automatisch an, sondern per Bericht-Code. Ein Code lässt sich nicht sperren; schalte stattdessen weniger frei und schicke einen neuen Link.
 
+## 🌐 Öffentliche Website (für Google)
+
+Im Ordner `site/` liegt die öffentliche Website: eine Startseite für Eltern (Angebot, Ablauf, Lern-App, FAQ, Kontakt) mit Impressum und Datenschutz, dazu die Lern-App unter `/app/`. Sie wird automatisch über **GitHub Pages** veröffentlicht (`.github/workflows/pages.yml`), sobald Änderungen auf `main` landen.
+
+**Einmalig einrichten**
+1. Diesen Branch in `main` übernehmen (Pull Request mergen).
+2. Auf GitHub: **Settings → Pages → Build and deployment → Source: „GitHub Actions“**.
+3. **`site/config.json`** ausfüllen (direkt auf GitHub mit dem Stift-Symbol): Name, Ort/Region, Telefon, E-Mail, „Über mich“, Impressum-Angaben. Dann `"bereit": true` setzen.
+   Solange `bereit` nicht `true` ist **oder** das Impressum fehlt, ist die Seite für Google gesperrt (`noindex`).
+4. Adresse: `https://lea31anna-ship-it.github.io/IDK/`. Eine eigene Domain (z. B. `lerniversum.at`) trägst du unter `eigeneDomain` ein und richtest sie beim Domain-Anbieter ein (CNAME auf `lea31anna-ship-it.github.io`).
+5. **Google:** In der [Google Search Console](https://search.google.com/search-console) die Seite hinzufügen, den Bestätigungscode unter `googleVerifizierung` eintragen und die Sitemap `sitemap.xml` einreichen. Bis die Seite in den Suchergebnissen erscheint, dauert es meist einige Tage bis Wochen.
+6. Für lokale Suchen hilft zusätzlich ein kostenloses **Google-Unternehmensprofil** (business.google.com) mit Link zur Website.
+
+Lokal bauen: `node site/build.mjs` → `site/dist/`
+
+## 💬 Kommunikation
+
+- **Coachin → Kind:** Funksprüche (per Link). Das Kind findet alle unter „Mehr → Meine Funksprüche“, auf Wunsch vorgelesen. Die Hausübung aus dem Stundenprotokoll kann direkt als Funkspruch verschickt werden.
+- **Coachin → Eltern:** Coach-Bereich → Kind → 💬 Nachrichten: Text schreiben (mit Vorlagen) und per WhatsApp oder E-Mail senden. Alles landet im **Verlauf**, wo du Antworten oder Telefonate der Eltern dazuschreiben kannst.
+- **Eltern/Kind → Coachin:** In der App unter „Mehr → Nachricht an meine Coachin“. Die Nachricht wird per WhatsApp oder E-Mail verschickt, auf Wunsch mit Fortschritts-Bericht. Telefon und E-Mail der Coachin kommen aus den Einstellungen und werden in die Kinder-Links eingebaut.
+- **Grenze:** Ein Echtzeit-Chat mit Verlauf auf beiden Seiten bräuchte einen eigenen Server mit Datenbank und Logins für Eltern (siehe Server-Version).
+
 ## ▶️ Starten
 
 Du brauchst nur [Node.js](https://nodejs.org) ab Version 18. Weitere Pakete sind nicht nötig.

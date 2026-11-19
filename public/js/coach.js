@@ -1,8 +1,9 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS } from './curriculum.js';
+import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS, PLACEMENT_STATUS } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
 import { parseWordInput } from './words.js';
+import { waLink, mailLink } from './org-model.js';
 import { initOrg, loadOrg, overviewOrgHtml, bindOverviewOrg, renderCalendar, renderTodos, renderBilling, renderBackup, tabProfile, tabGoals, tabLessons, goalsReportHtml } from './coach-org.js';
 let root = null, host = null, toastEl = null; // werden in start() gesetzt
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,7 +21,7 @@ const freeAvatar = () => { const used = new Set(S.kids.map(k => k.avatar)); retu
 const moodE = v => MOODS.find(m => m.v === v)?.e || '–';
 const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '–';
 const fmtDateTime = ts => ts ? new Date(ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
-const daysAgo = ts => ts ? Math.floor((Date.now() - Date.parse(ts)) / 86400000) : Infinity;
+const daysAgo = ts => ts ? Math.max(0, Math.floor((Date.now() - Date.parse(ts)) / 86400000)) : Infinity;
 const starsHtml = n => [1, 2, 3].map(i => `<span class="${i <= n ? '' : 'off'}">★</span>`).join('');
 const pName = id => activityName(id);
 
@@ -254,7 +255,7 @@ async function openKid(id, tab = 'overview') {
 }
 async function patchKid(body) { S.kid = await api('/api/coach/kids/' + S.kid.id, { method: 'PATCH', body }); await refreshKids(); }
 
-const TABS = [['overview', '📈 Überblick'], ['lessons', '🗓️ Stunden'], ['goals', '🎯 Förderziele'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '📡 Funkspruch'], ['notes', '📝 Notizen'], ['profile', '👤 Profil'], ['report', '📄 Elternbericht']];
+const TABS = [['overview', '📈 Überblick'], ['lessons', '🗓️ Stunden'], ['goals', '🎯 Förderziele'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '💬 Nachrichten'], ['notes', '📝 Notizen'], ['profile', '👤 Profil'], ['report', '📄 Elternbericht']];
 function renderKid(main) {
   const k = S.kid;
   main.innerHTML = `
@@ -304,6 +305,9 @@ function tabOverview(el, k) {
         <div class="card"><h2>📅 Lern-Tage diese Woche</h2><div class="trophy-row">${wd.map(d => `<span class="tr day ${d.done ? 'got' : ''}" title="${d.iso}">${d.done ? '⭐' : ''}<small>${d.name}</small></span>`).join('')}</div>
         <p class="muted" style="margin-bottom:0">Gelöste Rätsel: ${st.games || 0} · Lernwörter geübt: ${st.words || 0}×${S.lite ? ' · Stand: letzter Bericht' : ''}</p></div></div>`;
     })()}
+    ${k.placement ? `<div class="card"><h2>🧭 Einstufungstest</h2><div class="grid2">${Object.entries(k.placement).map(([sub, pl]) => `<div><h3 style="margin:0 0 6px;font-size:1em">${sub === 'mathe' ? '🔢 Mathe' : '🔤 Deutsch'} <span class="muted" style="font-weight:400">· ${fmtDate(pl.ts)} · ${pl.correct}/${pl.asked} richtig</span></h3>
+      <ul class="mini-list">${(pl.topics || []).map(t => `<li>${PLACEMENT_STATUS[t.status]?.icon || ''} ${esc(GALAXIES.find(g => g.id === t.topic)?.name || t.topic)} <span class="muted">${PLACEMENT_STATUS[t.status]?.label || ''}${t.asked ? ` (${t.ok}/${t.asked})` : ''}</span></li>`).join('')}</ul>
+      <p style="margin:6px 0 0">Empfohlenes Start-Thema: <b>${esc(GALAXIES.find(g => g.id === pl.recommend)?.name || '')}</b></p></div>`).join('')}</div></div>` : ''}
     <div class="card"><h2>Letzte Missionen</h2>
       ${sess.length ? `<table class="resp"><thead><tr><th>Wann</th><th>Planet</th><th>Ergebnis</th><th>Sterne</th><th>Stimmung vorher → nachher</th><th>Tipps</th><th>Dauer</th></tr></thead><tbody>
       ${sess.slice(-15).reverse().map(s => `<tr><td>${fmtDateTime(s.ts)}</td><td>${esc(pName(s.planetId))}${s.level ? ` <span class="tag">${PLANET_LEVELS[s.level - 1].medal} Stufe ${s.level}</span>` : ''}</td><td>${s.correct}/${s.total}</td><td class="stars">${starsHtml(s.stars)}</td><td>${moodE(s.moodBefore)} → ${moodE(s.moodAfter)}</td><td>${s.tips}</td><td>${Math.round((s.durationSec || 0) / 60 * 10) / 10} min</td></tr>`).join('')}
@@ -445,24 +449,52 @@ function tabMood(el, k) {
 }
 
 const TEMPLATES = ['Super gemacht diese Woche! Ich bin stolz auf dich! 🌟', 'Ich habe dir einen neuen Planeten freigeschaltet. Viel Spaß beim Entdecken! 🚀', 'Fehler sind toll – mit ihnen lernt unser Gehirn! 💪', 'Denk dran: Übe heute 10 Minuten auf deinem Planeten. 🪐', 'Ich freue mich auf unsere nächste Stunde! 😊'];
+const PARENT_TEMPLATES = ['Liebe Eltern, kurze Rückmeldung zur heutigen Stunde: ', 'Erinnerung: Unser nächster Termin ist am ', 'Bitte schicken Sie mir in der App unter „Mehr → Bericht an meine Coachin“ den aktuellen Fortschritt. Danke!', 'Neue Lernwörter sind freigeschaltet – einfach den Link öffnen: '];
 function tabRadio(el, k) {
+  const p = k.profile || {}, log = [...(k.contactLog || [])];
+  const timeline = [...log.map(x => ({ ...x, kind: 'eltern' })), ...k.messages.map(m => ({ ts: m.ts, dir: 'out', via: 'funkspruch', text: m.text, read: m.read, readAt: m.readAt }))].sort((a, b) => b.ts.localeCompare(a.ts));
+  const VIA = { whatsapp: '🟢 WhatsApp', email: '✉️ E-Mail', kopiert: '📋 kopiert', telefon: '📞 Telefon', persönlich: '🤝 persönlich', funkspruch: '📡 Funkspruch ans Kind' };
   el.innerHTML = `
+    <div class="grid2">
     <div class="card"><h2>📡 Funkspruch an ${esc(k.name)}</h2>
-      <p class="muted" style="margin-top:-6px">${S.lite ? 'Du bekommst einen Link mit dem Funkspruch. Schick ihn den Eltern – beim Öffnen erscheint die Nachricht als Funkspruch aus der Basis, mit Vorlese-Funktion.' : 'Erscheint beim nächsten App-Start als Funkspruch aus der Basis – mit Vorlese-Funktion.'}</p>
-      <div class="templates">${TEMPLATES.map((t, i) => `<button class="btn small" data-t="${i}">${esc(t.slice(0, 32))}…</button>`).join('')}</div>
-       <textarea id="msg" maxlength="${S.lite ? 160 : 500}" placeholder="Kurz und einfach schreiben – das Kind bekommt den Text vorgelesen."></textarea>
+      <p class="muted" style="margin-top:-6px">${S.lite ? 'Du bekommst einen Link mit dem Funkspruch. Beim Öffnen erscheint die Nachricht beim Kind und wird vorgelesen. Das Kind findet alle Funksprüche unter „Mehr“.' : 'Erscheint beim nächsten App-Start als Funkspruch aus der Basis – mit Vorlese-Funktion.'}</p>
+      <div class="templates">${TEMPLATES.map((t, i) => `<button class="btn small" data-t="${i}">${esc(t.slice(0, 28))}…</button>`).join('')}</div>
+      <textarea id="msg" maxlength="${S.lite ? 160 : 500}" placeholder="Kurz und einfach schreiben – das Kind bekommt den Text vorgelesen."></textarea>
       <div class="row" style="margin-top:10px"><button class="btn primary" id="send">Senden 🚀</button></div>
     </div>
-    <div class="card"><h2>Bisherige Funksprüche</h2>
-      ${k.messages.length ? [...k.messages].reverse().map(m => `<div class="msg">${esc(m.text)}<div class="when">${fmtDateTime(m.ts)} · ${S.lite ? '🔗 als Link verschickt' : m.read ? '✓ gelesen ' + fmtDateTime(m.readAt) : '⏳ noch nicht gelesen'}</div></div>`).join('') : '<p class="muted">Noch keine Funksprüche.</p>'}
+    <div class="card"><h2>👪 Nachricht an die Eltern</h2>
+      <p class="muted" style="margin-top:-6px">${p.parent ? esc(p.parent) + ' · ' : ''}${p.phone ? esc(p.phone) : 'keine Telefonnummer'}${p.email ? ' · ' + esc(p.email) : ''} – <a href="#" id="to-profile">im Profil ändern</a></p>
+      <div class="templates">${PARENT_TEMPLATES.map((t, i) => `<button class="btn small" data-pt="${i}">${esc(t.slice(0, 28))}…</button>`).join('')}</div>
+      <textarea id="pmsg" maxlength="2000" placeholder="Nachricht an die Eltern …"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="wa" ${p.phone ? '' : 'disabled title="Telefonnummer im Profil eintragen"'}>🟢 WhatsApp</button>
+        <button class="btn" id="mail" ${p.email ? '' : 'disabled title="E-Mail im Profil eintragen"'}>✉️ E-Mail</button>
+        <button class="btn" id="pcopy">📋 Kopieren</button>
+      </div>
+      <p class="muted" style="font-size:.82em">WhatsApp bzw. dein E-Mail-Programm öffnet sich mit dem fertigen Text. Die Nachricht wird hier im Verlauf gespeichert.</p>
+    </div></div>
+    <div class="card"><h2>🗂️ Verlauf</h2>
+      <details><summary>+ Antwort oder Gespräch der Eltern notieren</summary>
+        <div class="row" style="margin-top:8px"><select id="in-via" style="width:auto"><option value="whatsapp">WhatsApp</option><option value="email">E-Mail</option><option value="telefon">Telefon</option><option value="persönlich">persönlich</option></select>
+        <textarea id="in-text" maxlength="2000" placeholder="Was haben die Eltern geschrieben/gesagt?" style="min-height:70px;flex:1"></textarea>
+        <button class="btn" id="in-save">Notieren</button></div></details>
+      ${timeline.length ? timeline.map(x => `<div class="msg ${x.dir === 'in' ? 'msg-in' : ''}"><div class="when">${x.dir === 'in' ? '⬅️ von den Eltern' : '➡️'} ${VIA[x.via] || ''} · ${fmtDateTime(x.ts)}${x.via === 'funkspruch' && !S.lite ? (x.read ? ' · ✓ gelesen' : ' · ⏳ ungelesen') : ''}</div>${esc(x.text).replace(/\n/g, '<br>')}</div>`).join('') : '<p class="muted">Noch keine Nachrichten.</p>'}
     </div>`;
   el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { el.querySelector('#msg').value = TEMPLATES[Number(b.dataset.t)]; });
+  el.querySelectorAll('[data-pt]').forEach(b => b.onclick = () => { const ta = el.querySelector('#pmsg'); ta.value = PARENT_TEMPLATES[Number(b.dataset.pt)]; ta.focus(); });
+  el.querySelector('#to-profile').onclick = e => { e.preventDefault(); S.tab = 'profile'; renderKid(document.getElementById('main') || root.querySelector('main')); };
   el.querySelector('#send').onclick = async () => {
     const text = el.querySelector('#msg').value.trim(); if (!text) return;
     S.kid = await api(`/api/coach/kids/${k.id}/messages`, { method: 'POST', body: { text } }); await refreshKids();
     tabRadio(el, S.kid);
     if (S.lite) shareLink(S.kid, text); else toast('Funkspruch gesendet');
   };
+  const logOut = async (via, text) => { await patchKid({ contactLog: [...(S.kid.contactLog || []), { ts: new Date().toISOString(), dir: 'out', via, text }] }); tabRadio(el, S.kid); };
+  const pmsg = () => el.querySelector('#pmsg').value.trim();
+  el.querySelector('#wa').onclick = () => { const t = pmsg(); if (!t) return; const url = waLink(p.phone, t); if (!url) { toast('Telefonnummer ungültig'); return; } window.open(url, '_blank', 'noopener'); logOut('whatsapp', t); };
+  el.querySelector('#mail').onclick = () => { const t = pmsg(); if (!t) return; const url = mailLink(p.email, `${APP_NAME}: ${k.name}`, t); if (!url) { toast('E-Mail ungültig'); return; } location.href = url; logOut('email', t); };
+  el.querySelector('#pcopy').onclick = () => { const t = pmsg(); if (!t) return; copyText(t); logOut('kopiert', t); };
+  el.querySelector('#in-save').onclick = async () => { const t = el.querySelector('#in-text').value.trim(); if (!t) return; await patchKid({ contactLog: [...(S.kid.contactLog || []), { ts: new Date().toISOString(), dir: 'in', via: el.querySelector('#in-via').value, text: t }] }); tabRadio(el, S.kid); toast('Notiert'); };
 }
 
 function tabWords(el, k) {
@@ -625,6 +657,9 @@ function renderSettings(main) {
       <form id="sf">
         <div class="field"><label for="pn">Praxisname</label><input id="pn" type="text" maxlength="80" value="${esc(s.practiceName)}" placeholder="z. B. Lernwerkstatt Sonnenschein"></div>
         <div class="field"><label for="cn">Dein Name (so sehen dich die Kinder)</label><input id="cn" type="text" maxlength="60" value="${esc(s.coachName)}" placeholder="z. B. Frau Lea"></div>
+        <div class="field"><label for="ph">Deine Telefonnummer für WhatsApp (z. B. 0664 1234567)</label><input id="ph" type="text" maxlength="40" value="${esc(s.phone || '')}"></div>
+        <div class="field"><label for="em">Deine E-Mail-Adresse</label><input id="em" type="text" maxlength="120" value="${esc(s.email || '')}"></div>
+        <p class="muted" style="margin-top:-4px">Telefon und E-Mail werden in die Kinder-Links eingebaut, damit Eltern dir aus der App heraus schreiben können („💬 Nachricht an Coachin“).</p>
         <div class="field"><label for="cu">Kontakt-Link (Webseite, mailto: oder tel:)</label><input id="cu" type="url" maxlength="300" value="${esc(s.contactUrl)}" placeholder="https://… oder mailto:…"></div>
         <div class="field"><label for="wl">Begrüßungstext auf der Startseite (optional)</label><input id="wl" type="text" maxlength="400" value="${esc(s.welcome)}"></div>
         <button class="btn primary">Speichern</button> <span class="muted" id="ss"></span>
@@ -647,7 +682,7 @@ function renderSettings(main) {
     </div>`}`;
   main.querySelector('#sf').onsubmit = async e => {
     e.preventDefault();
-    S.settings = await api('/api/coach/settings', { method: 'PUT', body: { practiceName: main.querySelector('#pn').value, coachName: main.querySelector('#cn').value, contactUrl: main.querySelector('#cu').value, welcome: main.querySelector('#wl').value } });
+    S.settings = await api('/api/coach/settings', { method: 'PUT', body: { practiceName: main.querySelector('#pn').value, coachName: main.querySelector('#cn').value, contactUrl: main.querySelector('#cu').value, welcome: main.querySelector('#wl').value, phone: main.querySelector('#ph').value, email: main.querySelector('#em').value } });
     main.querySelector('#ss').textContent = '✓ Gespeichert';
   };
   main.querySelector('#pinchange')?.addEventListener('click', () => S.lite.changePin());

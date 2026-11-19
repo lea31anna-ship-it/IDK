@@ -8,7 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION, levelStars } from './public/js/curriculum.js';
-import { cleanProfile, cleanGoals, cleanLessons, cleanOrg } from './public/js/org-model.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog } from './public/js/org-model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -112,7 +112,8 @@ function kidPublic(k) {
   return {
     name: k.name, avatar: k.avatar, code: k.code, unlocked: k.unlocked, autoAdvance: k.autoAdvance,
     progress: k.progress, messages: k.messages.filter(m => !m.read).map(({ id, text, ts }) => ({ id, text, ts })),
-    wordLists: k.wordLists || [], reward: k.reward || null,
+    wordLists: k.wordLists || [], reward: k.reward || null, contact: { name: db.settings.coachName, phone: db.settings.phone || '', email: db.settings.email || '' },
+    mailbox: k.messages.slice(-30).map(({ text, ts }) => ({ text, ts })),
     coachName: db.settings.coachName, practiceName: db.settings.practiceName,
   };
 }
@@ -157,7 +158,8 @@ async function api(req, res, url) {
     if (p === '/api/kid/me' && m === 'GET') return send(res, 200, kidPublic(k));
     if (p === '/api/kid/result' && m === 'POST') {
       const b = await readBody(req);
-      const isActivity = b.planetId === 'lernwoerter' || b.planetId === 'station';
+      const isActivity = ['lernwoerter', 'station', 'einstufung'].includes(b.planetId);
+      if (b.placement && ['mathe', 'deutsch'].includes(b.placement.subject) && JSON.stringify(b.placement).length < 4000) k.placement = { ...(k.placement || {}), [b.placement.subject]: b.placement };
       const level = [1, 2, 3].includes(b.level) ? b.level : null;
       if (!PLANET_BY_ID[b.planetId] && !isActivity) return send(res, 400, { error: 'Unbekannter Planet' });
       const total = Math.min(Math.max(Number(b.total) || TASKS_PER_MISSION, 1), 50);
@@ -225,7 +227,7 @@ async function api(req, res, url) {
     if (m === 'PUT') {
       const b = await readBody(req);
       const url = clip(b.contactUrl, 300).trim();
-      db.settings = { practiceName: clip(b.practiceName, 80), coachName: clip(b.coachName, 60), contactUrl: /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : '', welcome: clip(b.welcome, 400) };
+      db.settings = { practiceName: clip(b.practiceName, 80), coachName: clip(b.coachName, 60), contactUrl: /^(https?:\/\/|mailto:|tel:)/i.test(url) ? url : '', welcome: clip(b.welcome, 400), phone: clip(b.phone, 40), email: clip(b.email, 120) };
       saveDb(); return send(res, 200, db.settings);
     }
   }
@@ -274,6 +276,7 @@ async function api(req, res, url) {
       if (Array.isArray(b.wordLists)) k.wordLists = b.wordLists.slice(0, 20).map((l, i) => ({ id: clip(l.id || 'l' + i, 20), name: clip(l.name, 40) || 'Lernwörter', words: (Array.isArray(l.words) ? l.words : []).slice(0, 60).map(w => clip(w, 30)).filter(Boolean) }));
       if (b.profile !== undefined) k.profile = cleanProfile(b.profile);
       if (b.goals !== undefined) k.goals = cleanGoals(b.goals);
+      if (b.contactLog !== undefined) k.contactLog = cleanContactLog(b.contactLog);
       if (b.lessons !== undefined) k.lessons = cleanLessons(b.lessons);
       if (b.reward !== undefined) k.reward = b.reward && b.reward.text ? { goal: Math.min(Math.max(Number(b.reward.goal) || 5, 1), 30), text: clip(b.reward.text, 120) } : null;
       saveDb(); return send(res, 200, k);

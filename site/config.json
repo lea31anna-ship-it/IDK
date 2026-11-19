@@ -1,0 +1,35 @@
+{
+  "_hinweis": "Diese Datei steuert die öffentliche Website. Felder ausfüllen, speichern – die Seite wird automatisch neu veröffentlicht. Solange 'bereit' auf false steht, wird die Seite NICHT bei Google angezeigt.",
+  "bereit": false,
+  "siteUrl": "https://lea31anna-ship-it.github.io/IDK/",
+  "eigeneDomain": "",
+  "googleVerifizierung": "",
+
+  "praxisName": "Lerniversum",
+  "coachName": "",
+  "berufsbezeichnung": "Lerncoachin für Legasthenie & Dyskalkulie",
+  "ort": "",
+  "region": "",
+  "telefon": "",
+  "email": "",
+  "ueberMich": "",
+  "angebot": [
+    "Lerncoaching bei Legasthenie / LRS",
+    "Lerncoaching bei Dyskalkulie / Rechenschwäche",
+    "Lernstandserhebung und individueller Förderplan",
+    "Begleitung zu Hause mit der Lerniversum-App"
+  ],
+  "einheit": "Einzelstunde (50 Minuten)",
+  "preis": "",
+
+  "impressum": {
+    "nameOderFirma": "",
+    "anschrift": "",
+    "unternehmensgegenstand": "Lerncoaching / Lernbetreuung",
+    "uid": "",
+    "gewerbebehoerde": "",
+    "kammer": "",
+    "berufsrecht": ""
+  },
+  "coachLoginUrl": "https://claude.ai/artifact/JvSoUBte8TqS2rWvQPdCkU"
+}

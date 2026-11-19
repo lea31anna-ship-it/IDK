@@ -1,7 +1,7 @@
 // Aufgaben für Klapustri-Galaxie, Brüche-Galaxie und die Förderwelt (Laut-Galaxie, Zahlen-Insel).
 // Auch hier steht jeder falsche Antwortvorschlag für ein Fehlermuster (Fehler-Radar).
 import { rnd, pick, shuffle, reverseDigits, options, numFiller } from './util.js';
-import { WORDS } from './exercises.js';
+import { WORDS, allGenerators as gens } from './exercises.js';
 
 const M = '−';
 const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
@@ -328,11 +328,132 @@ const ZAHL = {
   },
 };
 
-const mix = ids => level => { const id = pick(ids); return GEN3[id](level); };
+// ================= MENGEN & KRAFT DER 5 =================
+const five = (nn, color = 'a') => ({ type: 'tenframe2', groups: [{ n: nn, color }], mark5: true });
+const K5 = {
+  k5_fuenfer(level) {
+    const nn = rnd(level === 1 ? 3 : 5, 10);
+    return {
+      prompt: level === 1 ? 'Wie viele Punkte? Denk an die Kraft der 5!' : 'Blitzblick! Wie viele Punkte waren es?', speak: 'Wie viele Punkte siehst du?', label: `Fünfer ${nn}`,
+      visual: { type: 'tenframe', groups: [{ n: nn, color: 'a' }], mark5: true }, flash: level > 1,
+      options: options(nn, [{ v: nn - 1, type: 'zaehlfehler' }, { v: nn + 1, type: 'zaehlfehler' }, { v: nn >= 5 ? nn - 5 : null, type: 'schaetzen' }, { v: nn <= 5 ? nn + 5 : null, type: 'schaetzen' }], numFiller(nn, 3)),
+      hint: { text: `Die obere Reihe ist voll – das sind 5. Dann nur noch die unteren zählen: 5 und ${Math.max(0, nn - 5)}.`, visual: { type: 'tenframe', groups: [{ n: nn, color: 'a' }], mark5: true } },
+    };
+  },
+  k5_finger(level) {
+    const nn = rnd(level === 1 ? 1 : 3, 10);
+    return {
+      prompt: 'Wie viele Finger zeigen die Hände?', speak: 'Wie viele Finger zeigen die Hände?', label: `Finger ${nn}`, visual: { type: 'hands', n: nn }, flash: level === 3,
+      options: options(nn, [{ v: nn - 1, type: 'zaehlfehler' }, { v: nn + 1, type: 'zaehlfehler' }, { v: nn > 5 ? nn - 5 : null, type: 'schaetzen' }, { v: nn < 5 ? 5 + nn : null, type: 'schaetzen' }], numFiller(nn, 3)),
+      hint: { text: nn > 5 ? `Eine ganze Hand sind 5 Finger. Dazu noch ${nn - 5} – das musst du nicht einzeln zählen!` : 'Zähle die gestreckten Finger. Eine ganze Hand wären 5.' },
+    };
+  },
+  k5_plus5(level) {
+    const k = rnd(1, level === 1 ? 5 : 9), [a, b] = Math.random() < 0.5 ? [5, k] : [k, 5], base = level === 3 ? 10 * rnd(1, 3) : 0;
+    const A = a + (a === 5 ? base : 0), c = A + b;
+    return {
+      prompt: `${A} + ${b} = ?`, speak: `${A} plus ${b}`, visual: level < 3 && c <= 20 ? five(c) : { type: 'big' }, label: `${A} + ${b}`,
+      options: options(c, [{ v: c - 1, type: 'zaehlfehler' }, { v: c + 1, type: 'zaehlfehler' }, { v: c + 10, type: 'stellenwert' }, { v: Math.abs(A - b), type: 'operation' }], numFiller(c, 3)),
+      hint: { text: `Die 5 ist eine volle Fünferreihe. Dazu ${a === 5 ? b : a}: ${A} und noch ${a === 5 ? b : a}.` },
+    };
+  },
+  k5_zerlegen(level) {
+    const total = level === 1 ? rnd(6, 10) : level === 2 ? rnd(6, 15) : rnd(11, 20), part = total > 10 && level > 1 ? 10 : 5, c = total - part;
+    return {
+      prompt: `${total} = ${part} + ?`, speak: `${total} ist ${part} plus wie viel?`, visual: total <= 20 ? five(total) : { type: 'big' }, label: `${total} = ${part} + _`,
+      options: options(c, [{ v: c + 1, type: 'zaehlfehler' }, { v: c - 1 || null, type: 'zaehlfehler' }, { v: total, type: 'zerlegung' }, { v: part === 5 ? c + 5 : c - 5 > 0 ? c - 5 : null, type: 'zerlegung' }], numFiller(c, 3)),
+      hint: { text: `Schau ins Feld: ${part === 10 ? 'Eine volle Zehnerreihe' : 'Eine volle Fünferreihe'} ist ${part}. Wie viele sind noch dazu?` },
+    };
+  },
+  k5_zwanzig(level) {
+    const nn = rnd(level === 1 ? 6 : 8, 20);
+    return {
+      prompt: level === 3 ? 'Blitzblick! Welche Zahl war es?' : 'Welche Zahl siehst du?', speak: 'Welche Zahl siehst du im Zwanzigerfeld?', label: `Zwanzig ${nn}`, visual: five(nn), flash: level === 3,
+      options: options(nn, [{ v: nn - 1, type: 'zaehlfehler' }, { v: nn + 1, type: 'zaehlfehler' }, { v: nn > 10 ? nn - 10 : nn + 10, type: 'stellenwert' }, { v: nn - 5 > 0 ? nn - 5 : null, type: 'schaetzen' }, { v: reverseDigits(nn), type: 'zahlendreher' }], numFiller(nn, 3)),
+      hint: { text: 'Ein volles Feld oben sind 10. Jede Fünferreihe sind 5. Zähle in 10ern und 5ern, dann den Rest.' },
+    };
+  },
+};
+// ================= ZAHLENRAUM 10 =================
+const ZR10 = {
+  zr10_ergaenzen(level) {
+    const max = level === 1 ? 6 : 10, total = rnd(3, max), a = rnd(1, total - 1), c = total - a;
+    return {
+      prompt: `${a} + ? = ${total}`, speak: `${a} plus wie viel ist ${total}?`, visual: level === 1 ? { type: 'tenframe', groups: [{ n: a, color: 'a' }, { n: c, color: 'empty' }] } : { type: 'big' }, label: `${a} + _ = ${total}`,
+      options: options(c, [{ v: total + a <= 20 ? total + a : null, type: 'operation' }, { v: total, type: 'zerlegung' }, { v: c + 1, type: 'zaehlfehler' }, { v: c - 1 || null, type: 'zaehlfehler' }], numFiller(c, 3)),
+      hint: { text: `Zähle von ${a} weiter bis ${total}. Wie viele Schritte sind das? Oder rechne rückwärts: ${total} − ${a}.` },
+    };
+  },
+  zr10_platzhalter(level) {
+    const kind = rnd(0, level === 1 ? 1 : 2), x = rnd(1, 9);
+    let t, c, d;
+    if (kind === 0) { const b = rnd(1, 10 - x); t = `? + ${b} = ${x + b}`; c = x; d = [{ v: x + 2 * b <= 20 ? x + 2 * b : null, type: 'operation' }]; }
+    else if (kind === 1) { const b = rnd(1, x); t = `? ${M} ${b} = ${x - b}`; c = x; d = [{ v: Math.abs(x - 2 * b) !== x ? Math.abs(x - 2 * b) : null, type: 'operation' }]; }
+    else { const b = rnd(1, x); t = `${x} ${M} ? = ${x - b}`; c = b; d = [{ v: x + x - b <= 20 ? x + x - b : null, type: 'operation' }]; }
+    return {
+      prompt: t, speak: t.replace('?', 'wie viel').replace(M, 'minus'), visual: { type: 'big' }, label: t,
+      options: options(c, [...d, { v: c + 1, type: 'zaehlfehler' }, { v: c - 1 || null, type: 'zaehlfehler' }], numFiller(c, 3)),
+      hint: { text: 'Probiere aus: Setz eine Zahl für das ? ein und rechne nach. Stimmt die Rechnung? Oder rechne mit der Umkehraufgabe.' },
+    };
+  },
+};
+// ================= ZEHNERÜBERGANG =================
+const ZUE = {
+  zue_bis10(level) {
+    const tens = level === 1 ? 0 : level === 2 ? 10 : 10 * rnd(1, 8), a = tens + rnd(1, 9), target = tens + 10, c = target - a;
+    return {
+      prompt: `${a} + ? = ${target}`, speak: `${a} plus wie viel ist ${target}?`, visual: level === 1 ? { type: 'tenframe', groups: [{ n: a, color: 'a' }, { n: c, color: 'empty' }] } : { type: 'big' }, label: `${a} + _ = ${target}`,
+      options: options(c, [{ v: c + 1, type: 'zaehlfehler' }, { v: c - 1 || null, type: 'zaehlfehler' }, { v: 10 - c !== c ? 10 - c : null, type: 'zerlegung' }, { v: c + 10, type: 'stellenwert' }], numFiller(c, 3)),
+      hint: { text: `Bis zum vollen Zehner (${target}) fehlen noch … Schau auf die Einer: ${a % 10} und ? ergibt 10.` },
+    };
+  },
+  zue_zerlegen(level) {
+    const tens = level === 3 ? 10 * rnd(1, 7) : 0;
+    const [a0, b] = until(() => [rnd(5, 9), rnd(3, 9)], ([x, y]) => x + y > 10), a = tens + a0, toTen = 10 - a0, rest = b - toTen;
+    if (level === 1) {
+      const opts = [`${toTen} + ${rest}`, `${rest} + ${toTen}`, `${toTen + 1} + ${rest - 1}`, `${toTen - 1} + ${rest + 1}`].filter((v, i, arr) => arr.indexOf(v) === i && !/(^|\s)0 \+|\+ 0$|-/.test(v));
+      return {
+        prompt: `${a} + ${b}: Wie zerlegst du die ${b}?`, speak: `${a} plus ${b}. Wie zerlegst du die ${b}, damit du zuerst bis zur 10 kommst?`, label: `${a} + ${b} zerlegen`,
+        visual: { type: 'tenframe2', groups: [{ n: a0, color: 'a' }, { n: b, color: 'b' }] },
+        options: shuffle(opts.slice(0, 3).map(o => ({ label: o, correct: o === `${toTen} + ${rest}`, type: o === `${toTen} + ${rest}` ? null : 'zerlegung' }))),
+        hint: { text: `Erst bis zur 10: ${a0} + ${toTen} = 10. Darum zerlegst du die ${b} in ${toTen} und ${rest}.` },
+      };
+    }
+    return {
+      prompt: `${a} + ${b} = ${a} + ${toTen} + ?`, speak: `${a} plus ${b} ist ${a} plus ${toTen} plus wie viel?`, visual: { type: 'big' }, label: `${a} + ${b} = ${a} + ${toTen} + _`,
+      options: options(rest, [{ v: toTen, type: 'zerlegung' }, { v: b, type: 'zerlegung' }, { v: rest + 1, type: 'zaehlfehler' }, { v: a + b, type: 'operation' }], numFiller(rest, 3)),
+      hint: { text: `${a} + ${toTen} = ${a + toTen} (der volle Zehner). Von den ${b} hast du ${toTen} schon verbraucht – wie viele bleiben übrig?` },
+    };
+  },
+  zue_unter(level) {
+    const tens = level === 3 ? 10 * rnd(2, 8) : 10;
+    const [o, b] = until(() => [rnd(1, 8), rnd(3, 9)], ([x, y]) => y > x), a = tens + o, rest = b - o;
+    if (level === 1) {
+      const right = `${o} + ${rest}`;
+      const opts = [right, `${rest} + ${o}`, `${o + 1} + ${rest - 1}`, `${Math.max(1, o - 1)} + ${rest + 1}`].filter((v, i, arr) => arr.indexOf(v) === i && !/(^|\s)0 \+|\+ 0$|-/.test(v));
+      return {
+        prompt: `${a} ${M} ${b}: Wie zerlegst du die ${b}?`, speak: `${a} minus ${b}. Wie zerlegst du die ${b}, damit du zuerst zur 10 kommst?`, label: `${a} − ${b} zerlegen`,
+        visual: { type: 'tenframe2', groups: [{ n: a - b, color: 'a' }, { n: b, color: 'gone' }] },
+        options: shuffle(opts.slice(0, 3).map(x => ({ label: x, correct: x === right, type: x === right ? null : 'zerlegung' }))),
+        hint: { text: `Erst zurück zur ${tens}: ${a} ${M} ${o} = ${tens}. Darum zerlegst du die ${b} in ${o} und ${rest}.` },
+      };
+    }
+    return {
+      prompt: `${a} ${M} ${b} = ${a} ${M} ${o} ${M} ?`, speak: `${a} minus ${b} ist ${a} minus ${o} minus wie viel?`, visual: { type: 'big' }, label: `${a} − ${b} = ${a} − ${o} − _`,
+      options: options(rest, [{ v: o, type: 'zerlegung' }, { v: b, type: 'zerlegung' }, { v: rest + 1, type: 'zaehlfehler' }, { v: a - b, type: 'operation' }], numFiller(rest, 3)),
+      hint: { text: `${a} ${M} ${o} = ${tens} (genau der Zehner). Von den ${b} hast du ${o} schon abgezogen – wie viele fehlen noch?` },
+    };
+  },
+};
+
+const mix = ids => level => { const id = pick(ids); return gens()[id](level); };
 export const GEN3 = {
   kps_punkt: kpsPlanet('punkt'), kps_klammer: kpsPlanet('klammer'), kps_geteilt: kpsPlanet('geteilt'), kps_kette: kpsPlanet('kette'), kps_mix: kpsPlanet('mix'), kps_minus: kpsPlanet('minus'),
-  ...BR, ...LAUT, ...ZAHL,
+  ...BR, ...LAUT, ...ZAHL, ...K5, ...ZR10, ...ZUE,
 };
+GEN3.k5_sonne = mix(['mengen', 'k5_fuenfer', 'k5_finger', 'k5_plus5', 'k5_zerlegen', 'k5_zwanzig']);
+GEN3.zr10_sonne = mix(['zerlegen', 'zr10_ergaenzen', 'plus10', 'minus10', 'zr10_platzhalter']);
+GEN3.zue_sonne = mix(['zue_bis10', 'zue_zerlegen', 'plus20', 'zue_unter', 'minus20']);
 GEN3.kps_sonne = mix(['kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus']);
 GEN3.br_sonne = mix(['br_erweitern', 'br_vergleich', 'br_minus', 'br_von', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch']);
 GEN3.f_lautsonne = mix(['f_bp', 'f_dt', 'f_gk', 'f_fwv', 'f_eiie', 'f_umlaut', 'f_lautpos']);

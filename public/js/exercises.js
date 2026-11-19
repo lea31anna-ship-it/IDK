@@ -232,6 +232,7 @@ function schreiben() {
 
 // Erst beim ersten Gebrauch zusammensetzen (vermeidet Probleme mit der Ladereihenfolge der Module)
 let GEN = null;
+export const allGenerators = () => gens();
 const gens = () => (GEN ||= { ...GEN2, ...GEN3, mengen, zerlegen, plus10, minus10, plus20, minus20, geteilt, anlaut, vokale, silben, reime, bdpq, lesen, schreiben });
 
 function rawMission(planetId, count, level) {

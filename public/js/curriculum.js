@@ -4,25 +4,26 @@
 export const APP_NAME = 'Lerniversum';
 
 // Stufen (Österreich): Start = Volksschule 1.–2., dann Volksschule 3.–4., dann Unterstufe
+// Oben in der App: die Fächer. (Name LEVELS bleibt aus Kompatibilitätsgründen.)
 export const LEVELS = [
-  { id: 'foerder', name: 'Förderwelt', sub: 'Legasthenie & Dyskalkulie – Grundlagen in kleinen Schritten', icon: '🌈' },
-  { id: 'start', name: 'VS 1–2', sub: 'Volksschule 1.–2. Klasse', icon: '🌱' },
-  { id: 'vs34', name: 'VS 3–4', sub: 'Volksschule 3.–4. Klasse', icon: '🚀' },
-  { id: 'us', name: 'Unterstufe', sub: '1.–4. Klasse Mittelschule / AHS', icon: '🌠' },
+  { id: 'mathe', name: 'Mathe', sub: 'Rechnen, Zahlen und Mengen', icon: '🔢' },
+  { id: 'deutsch', name: 'Deutsch', sub: 'Lesen, Schreiben und Sprache', icon: '🔤' },
 ];
+// Themen-Galaxien, je Fach in Lern-Reihenfolge (man reist von einer zur nächsten)
 export const GALAXIES = [
-  { id: 'zahlen', name: 'Zahlen-Galaxie', short: 'Mathe', icon: '🔢', level: 'start', desc: 'Rechnen & Zahlen' },
-  { id: 'buchstaben', name: 'Buchstaben-Galaxie', short: 'Deutsch', icon: '🔤', level: 'start', desc: 'Lesen & Schreiben' },
-  { id: 'rechnen34', name: 'Rechen-Nebel', short: 'Mathe', icon: '🧮', level: 'vs34', desc: 'Rechnen bis 1000, Größen, Sachaufgaben' },
-  { id: 'deutsch34', name: 'Wörter-Nebel', short: 'Deutsch', icon: '📚', level: 'vs34', desc: 'Rechtschreibung & Leseverständnis' },
-  { id: 'mathe58', name: 'Mathe-Sternbild', short: 'Mathe', icon: '📐', level: 'us', desc: 'Brüche, Prozent, Gleichungen' },
-  { id: 'deutsch58', name: 'Sprach-Sternbild', short: 'Deutsch', icon: '✍️', level: 'us', desc: 'Grammatik & Rechtschreibung' },
-  // Galaxien-Ketten: gleiche Stufe + gleiches Fach = Reihenfolge, in der man weiterreist
-  { id: 'klapustri', name: 'Klapustri-Galaxie', short: 'Mathe', icon: '🧮', level: 'us', desc: 'Klammer vor Punkt vor Strich' },
-  { id: 'brueche', name: 'Brüche-Galaxie', short: 'Mathe', icon: '🍕', level: 'us', desc: 'Rechnen mit Brüchen' },
-  // Förderwelt
-  { id: 'laute', name: 'Laut-Galaxie', short: 'Deutsch', icon: '👂', level: 'foerder', desc: 'Ähnliche Laute unterscheiden (Legasthenie)' },
-  { id: 'zahleninsel', name: 'Zahlen-Insel', short: 'Mathe', icon: '🏝️', level: 'foerder', desc: 'Zahlvorstellung aufbauen (Dyskalkulie)' },
+  { id: 'mengen5', name: 'Mengen & Kraft der 5', short: 'Mathe', icon: '🖐️', level: 'mathe', grade: 'Grundlagen', desc: 'Mengen erfassen, Fünferbündel, Zwanzigerfeld' },
+  { id: 'zr10', name: 'Zahlenraum 10', short: 'Mathe', icon: '🔟', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Zerlegen, Plus, Minus, Ergänzen' },
+  { id: 'zue', name: 'Zehnerübergang', short: 'Mathe', icon: '🔁', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Über die 10 und zurück – Schritt für Schritt' },
+  { id: 'zr100', name: 'Zahlenraum 100', short: 'Mathe', icon: '💯', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Stellenwerte, Zahlenstrahl, Rechnen bis 100' },
+  { id: 'einmaleins', name: 'Einmaleins', short: 'Mathe', icon: '✖️', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Alle Reihen, Geteilt, gemischt' },
+  { id: 'zr1000', name: 'Zahlenraum 1000 & Sachrechnen', short: 'Mathe', icon: '🏰', level: 'mathe', grade: 'ab 3. Klasse', desc: 'Große Zahlen, Größen, Textaufgaben' },
+  { id: 'klapustri', name: 'Klapustri', short: 'Mathe', icon: '🧮', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Klammer vor Punkt vor Strich' },
+  { id: 'brueche', name: 'Brüche', short: 'Mathe', icon: '🍕', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Rechnen mit Brüchen' },
+  { id: 'zahlenwelt', name: 'Komma, Prozent & Gleichungen', short: 'Mathe', icon: '🌡️', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Dezimalzahlen, Prozent, negative Zahlen, Gleichungen' },
+  { id: 'laute', name: 'Laute & Buchstaben', short: 'Deutsch', icon: '👂', level: 'deutsch', grade: 'Grundlagen', desc: 'Laute hören und unterscheiden (b/p, d/t …)' },
+  { id: 'silben', name: 'Silben, Reime & Lesen', short: 'Deutsch', icon: '🎵', level: 'deutsch', grade: 'ab 1. Klasse', desc: 'Silben, Reime, Wörter und Sätze lesen' },
+  { id: 'rechtschreibung', name: 'Rechtschreibung', short: 'Deutsch', icon: '✍️', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Doppelmitlaute, ie, h, ä/äu, s/ss/ß, das/dass' },
+  { id: 'grammatik', name: 'Grammatik', short: 'Deutsch', icon: '🔤', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Nomen, Mehrzahl, Wortarten, Zeiten, Komma' },
 ];
 /** Galaxien-Kette (gleiche Stufe, gleiches Fach) in Reiseroute-Reihenfolge */
 export const chainOf = galaxyId => { const g = GALAXIES.find(x => x.id === galaxyId); return GALAXIES.filter(x => x.level === g.level && x.short === g.short); };
@@ -138,20 +139,50 @@ const zahleninsel = [
   { id: 'z_sonne', label: '🏝️', name: 'Insel-Sonne', topic: 'Alles zur Zahlvorstellung', boss: true },
 ];
 
+const mengen5New = [
+  { id: 'k5_fuenfer', label: '⁙⁙', name: 'Fünfer-Blitz-Planet', topic: 'Mengen mit der Kraft der 5 blitzschnell erkennen' },
+  { id: 'k5_finger', label: '🖐️', name: 'Finger-Planet', topic: 'Fingerbilder: eine ganze Hand sind 5' },
+  { id: 'k5_plus5', label: '5+', name: 'Fünf-und-noch-Planet', topic: '5 und noch … (5 + 3, 5 + 4 …)' },
+  { id: 'k5_zerlegen', label: '5|', name: 'Fünfer-Zerlege-Planet', topic: 'Zahlen mit der 5 zerlegen (8 = 5 + 3)' },
+  { id: 'k5_zwanzig', label: '20', name: 'Zwanzigerfeld-Planet', topic: 'Zahlen bis 20 im Zwanzigerfeld erkennen' },
+  { id: 'k5_sonne', label: '✋', name: 'Fünfer-Sonne', topic: 'Alles zur Kraft der 5', boss: true },
+];
+const zr10New = [
+  { id: 'zr10_ergaenzen', label: '3+?', name: 'Ergänzen-Planet', topic: 'Was fehlt? (3 + ? = 7)' },
+  { id: 'zr10_platzhalter', label: '?−2', name: 'Platzhalter-Planet', topic: 'Die fehlende Zahl finden (? − 2 = 5)' },
+  { id: 'zr10_sonne', label: '10', name: 'Zehner-Sonne', topic: 'Alles im Zahlenraum 10', boss: true },
+];
+const zueNew = [
+  { id: 'zue_bis10', label: '→10', name: 'Bis-zur-10-Planet', topic: 'Erst bis zur 10 (8 + ? = 10)' },
+  { id: 'zue_zerlegen', label: '8+2+3', name: 'Über-die-10-Planet', topic: 'Zehnerüberschreitung: 8 + 5 = 8 + 2 + 3' },
+  { id: 'zue_unter', label: '13−3−2', name: 'Unter-die-10-Planet', topic: 'Zehnerunterschreitung: 13 − 5 = 13 − 3 − 2' },
+  { id: 'zue_sonne', label: '±10', name: 'Zehnerübergang-Sonne', topic: 'Über und unter die 10 – gemischt', boss: true },
+];
+// Welche Planeten gehören zu welcher Themen-Galaxie (Reihenfolge = Lernweg)
+const TOPIC_PLANETS = {
+  mengen5: ['mengen', 'k5_fuenfer', 'k5_finger', 'k5_plus5', 'k5_zerlegen', 'k5_zwanzig', 'z_mehr', 'k5_sonne'],
+  zr10: ['zerlegen', 'zr10_ergaenzen', 'plus10', 'minus10', 'zr10_platzhalter', 'zr10_sonne'],
+  zue: ['zue_bis10', 'zue_zerlegen', 'plus20', 'zue_unter', 'minus20', 'z_doppel', 'zue_sonne'],
+  zr100: ['z_nachbar', 'z_groesser', 'z_stellen', 'z_strahl', 'z_freunde', 'plus100', 'minus100', 'z_sonne'],
+  einmaleins: ['mal1', 'mal2', 'mal3', 'mal4', 'mal5', 'mal6', 'mal7', 'mal8', 'mal9', 'mal10', 'geteilt', 'malmix'],
+  zr1000: ['malzehner', 'halbschriftlich', 'divrest', 'plus1000', 'minus1000', 'groessen', 'sachaufgaben'],
+  klapustri: ['vorrang', 'kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus', 'kps_sonne'],
+  brueche: ['brucherkennen', 'br_erweitern', 'bruchkuerzen', 'br_vergleich', 'bruchplus', 'br_minus', 'br_von', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch', 'br_sonne'],
+  zahlenwelt: ['dezimal', 'prozent', 'negativ', 'teilbar', 'potenz', 'gleichung'],
+  laute: ['anlaut', 'vokale', 'f_bp', 'f_dt', 'f_gk', 'f_fwv', 'bdpq', 'f_lautpos', 'f_lautsonne'],
+  silben: ['silben', 'reime', 'trennen', 'lesen', 'saetze'],
+  rechtschreibung: ['doppel', 'ie', 'f_eiie', 'dehnung', 'f_umlaut', 'slaute', 'dasdass', 'schreiben'],
+  grammatik: ['nomen', 'mehrzahl', 'wortarten', 'zeitformen', 'grossklein2', 'komma'],
+};
+
 const HUES = [28, 200, 280, 140, 330, 50, 180, 250, 10, 100, 300, 220, 160, 40, 260, 120, 350, 70];
 
-export const PLANETS = [
-  ...[...mathBase, ...mal, ...mathEnd].map((p, i) => ({ ...p, galaxy: 'zahlen', index: i, hue: HUES[i % HUES.length] })),
-  ...reading.map((p, i) => ({ ...p, galaxy: 'buchstaben', index: i, hue: HUES[(i * 3 + 5) % HUES.length] })),
-  ...rechnen34.map((p, i) => ({ ...p, galaxy: 'rechnen34', index: i, hue: HUES[(i * 5 + 2) % HUES.length] })),
-  ...deutsch34.map((p, i) => ({ ...p, galaxy: 'deutsch34', index: i, hue: HUES[(i * 7 + 3) % HUES.length] })),
-  ...mathe58.map((p, i) => ({ ...p, galaxy: 'mathe58', index: i, hue: HUES[(i * 5 + 9) % HUES.length] })),
-  ...deutsch58.map((p, i) => ({ ...p, galaxy: 'deutsch58', index: i, hue: HUES[(i * 7 + 11) % HUES.length] })),
-  ...klapustri.map((p, i) => ({ ...p, galaxy: 'klapustri', index: i, hue: HUES[(i * 3 + 1) % HUES.length] })),
-  ...brueche.map((p, i) => ({ ...p, galaxy: 'brueche', index: i, hue: HUES[(i * 5 + 7) % HUES.length] })),
-  ...laute.map((p, i) => ({ ...p, galaxy: 'laute', index: i, hue: HUES[(i * 7 + 4) % HUES.length] })),
-  ...zahleninsel.map((p, i) => ({ ...p, galaxy: 'zahleninsel', index: i, hue: HUES[(i * 5 + 3) % HUES.length] })),
-];
+const ALL_DEFS = Object.fromEntries([...mathBase, ...mal, ...mathEnd, ...reading, ...rechnen34, ...deutsch34, ...mathe58, ...deutsch58, ...klapustri, ...brueche, ...laute, ...zahleninsel, ...mengen5New, ...zr10New, ...zueNew].map(p => [p.id, p]));
+// Boss-Planeten (Sonnen) nur am Ende eines Themas als Boss darstellen
+export const PLANETS = GALAXIES.flatMap((g, gi) => TOPIC_PLANETS[g.id].map((id, i, arr) => {
+  const d = ALL_DEFS[id]; if (!d) throw new Error('Planet fehlt: ' + id);
+  return { ...d, boss: !!d.boss && i === arr.length - 1, galaxy: g.id, index: i, hue: HUES[(i * 5 + gi * 3) % HUES.length] };
+}));
 
 export const PLANET_BY_ID = Object.fromEntries(PLANETS.map(p => [p.id, p]));
 export const planetsOf = galaxyId => PLANETS.filter(p => p.galaxy === galaxyId);
@@ -168,7 +199,7 @@ export function starsFor(correct, total = TASKS_PER_MISSION) {
 }
 
 // Standard-Freischaltung für neue Kinder: jeweils der erste Planet der Start-Galaxien.
-export const DEFAULT_UNLOCKED = GALAXIES.filter(g => g.level === 'start').map(g => planetsOf(g.id)[0].id);
+export const DEFAULT_UNLOCKED = LEVELS.map(l => planetsOf(GALAXIES.find(g => g.level === l.id).id)[0].id);
 /** Ist eine ganze Galaxie geschafft (jeder Planet mindestens Stufe 1)? */
 export const galaxyDone = (galaxyId, progress = {}) => planetsOf(galaxyId).every(p => (progress[p.id]?.bestStars || 0) >= 1);
 
@@ -189,6 +220,29 @@ export function isUnlocked(planetId, { mode, progress = {}, unlocked = [], autoA
   if (p.index === 0) { const pg = prevGalaxy(p.galaxy); return !!(autoAdvance && pg && galaxyDone(pg.id, progress)); } // Weiterreise in die nächste Galaxie
   return autoAdvance && prevDone && isUnlocked(prev.id, { mode, progress, unlocked, autoAdvance });
 }
+
+// ---------- Einstufungstest ----------
+// Aufgaben von leicht nach schwer: [Thema, Planet, Stufe]. Der Test endet früher, wenn es zu schwer wird.
+export const PLACEMENT = {
+  mathe: [['mengen5', 'mengen', 1], ['mengen5', 'k5_plus5', 1], ['zr10', 'plus10', 2], ['zr10', 'minus10', 2], ['zr10', 'zr10_ergaenzen', 2],
+    ['zue', 'plus20', 2], ['zue', 'minus20', 2], ['zr100', 'z_stellen', 2], ['zr100', 'z_groesser', 2], ['zr100', 'plus100', 2],
+    ['einmaleins', 'mal3', 2], ['einmaleins', 'mal7', 2], ['einmaleins', 'geteilt', 2], ['zr1000', 'plus1000', 2], ['zr1000', 'divrest', 2],
+    ['klapustri', 'kps_punkt', 2], ['brueche', 'br_vergleich', 2], ['brueche', 'br_von', 2], ['zahlenwelt', 'dezimal', 2], ['zahlenwelt', 'gleichung', 2]],
+  deutsch: [['laute', 'anlaut', 1], ['laute', 'f_bp', 1], ['laute', 'vokale', 2], ['laute', 'f_dt', 2], ['silben', 'silben', 2], ['silben', 'reime', 2],
+    ['silben', 'lesen', 2], ['rechtschreibung', 'doppel', 2], ['rechtschreibung', 'ie', 2], ['rechtschreibung', 'dehnung', 2], ['silben', 'saetze', 2],
+    ['grammatik', 'nomen', 2], ['grammatik', 'mehrzahl', 2], ['rechtschreibung', 'slaute', 2], ['rechtschreibung', 'dasdass', 2],
+    ['grammatik', 'wortarten', 2], ['grammatik', 'zeitformen', 2], ['grammatik', 'komma', 2]],
+};
+/** Auswertung: je Thema sicher / teilweise / üben / offen + empfohlenes Start-Thema */
+export function evaluatePlacement(subject, results) {
+  const topics = GALAXIES.filter(g => g.level === subject).map(g => {
+    const r = results.filter(x => x.topic === g.id), ok = r.filter(x => x.ok).length;
+    return { topic: g.id, asked: r.length, ok, status: !r.length ? 'offen' : ok === r.length ? 'sicher' : ok === 0 ? 'ueben' : 'teilweise' };
+  });
+  const rec = topics.find(t => t.status === 'ueben' || t.status === 'teilweise') || topics.find(t => t.status === 'offen') || topics[topics.length - 1];
+  return { topics, recommend: rec.topic };
+}
+export const PLACEMENT_STATUS = { sicher: { icon: '✅', label: 'sicher' }, teilweise: { icon: '🟡', label: 'teilweise' }, ueben: { icon: '🔴', label: 'noch üben' }, offen: { icon: '⚪', label: 'nicht getestet' } };
 
 // ---------- Stufen pro Planet (wie Lektionen) ----------
 export const PLANET_LEVELS = [

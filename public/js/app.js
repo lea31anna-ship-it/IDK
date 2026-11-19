@@ -1,4 +1,4 @@
-import { PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, nextGalaxy, galaxyDone } from './curriculum.js';
+import { PLACEMENT, evaluatePlacement, PLACEMENT_STATUS, PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, nextGalaxy, galaxyDone } from './curriculum.js';
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf, stationQuiz } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
@@ -6,6 +6,7 @@ import { TROPHIES, emptyStats, award, weekDays, dailyMission, calendarLinks, sou
 import { cleanWord, syllablesOfCustom, parseWordInput, wordMission } from './words.js';
 import { GAMES, renderGame } from './games.js';
 import { pick } from './util.js';
+import { waLink, mailLink } from './org-model.js';
 
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
@@ -21,8 +22,8 @@ const state = {
   kid: null, code: null, info: null, server: false,
   offline: false, // Kind mit Code, aber ohne Server (Fortschritt lokal, Bericht per Text)
   progress: {}, unlocked: [], autoAdvance: true,
-  galaxy: store.get('galaxy', 'zahlen'),
-  settings: { fontSize: 'm', spacing: false, font: 'verdana', tint: 'none', autoread: false, calm: false, syll: true, sound: true, ...store.get('settings', {}) },
+  galaxy: store.get('galaxy', 'mengen5'),
+  settings: { fontSize: 'm', spacing: false, font: 'verdana', tint: 'none', autoread: false, calm: false, syll: true, sound: true, voiceSpeed: 'normal', ...store.get('settings', {}) },
 };
 
 // ---------- Server ----------
@@ -48,18 +49,39 @@ function applySettings() {
   if (s.calm) b.classList.add('calm');
   store.set('settings', s);
 }
+// ---------- Vorlesen ----------
+// Natürlich klingende Stimmen bevorzugen (Neural/Natural/Online/Premium), Tempo nicht zu extrem,
+// lange Texte satzweise vorlesen (manche Browser brechen lange Texte sonst mittendrin ab).
 let voice = null;
+const germanVoices = () => (window.speechSynthesis?.getVoices() || []).filter(v => /^de(-|_|$)/i.test(v.lang));
+function voiceScore(v) {
+  let sc = 0;
+  if (/natural|neural|online|premium|enhanced|wavenet/i.test(v.name)) sc += 50;
+  if (/google/i.test(v.name)) sc += 25;
+  if (/katja|conrad|seraphina|florian|amala|ingrid|jonas|anna|petra|helena|marlene|vicki/i.test(v.name)) sc += 15;
+  if (/de-AT/i.test(v.lang)) sc += 8; else if (/de-DE/i.test(v.lang)) sc += 5;
+  if (v.localService === false) sc += 5;
+  if (/compact|eloquence|espeak/i.test(v.name)) sc -= 30;
+  return sc;
+}
 function pickVoice() {
-  const vs = window.speechSynthesis?.getVoices() || [];
-  voice = vs.find(v => v.lang === 'de-DE' && /Google|Anna|Petra|Helena|Katja/i.test(v.name)) || vs.find(v => v.lang?.startsWith('de')) || null;
+  const vs = germanVoices();
+  voice = vs.find(v => v.name === state.settings.voiceName) || vs.sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null;
 }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function speak(text, rate = 0.9) {
+function speak(text, rate = 1) {
   if (!('speechSynthesis' in window) || !text) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'de-DE'; u.rate = rate; if (voice) u.voice = voice;
-  speechSynthesis.speak(u);
+  const synth = speechSynthesis;
+  if (synth.speaking || synth.pending) synth.cancel();
+  const base = { slow: 0.85, normal: 1, fast: 1.12 }[state.settings.voiceSpeed || 'normal'] || 1;
+  const r = Math.min(1.15, Math.max(0.78, rate)) * base * 0.95;
+  const parts = String(text).replace(/\s+/g, ' ').match(/[^.!?]+[.!?]+["“”«»]?\s*|[^.!?]+$/g) || [String(text)];
+  clearTimeout(speak.t);
+  speak.t = setTimeout(() => parts.map(x => x.trim()).filter(Boolean).forEach(x => {
+    const u = new SpeechSynthesisUtterance(x);
+    u.lang = voice?.lang || 'de-DE'; u.rate = r; u.pitch = 1.03; if (voice) u.voice = voice;
+    synth.speak(u);
+  }), 80);
 }
 function toast(msg) {
   const t = document.getElementById('toast');
@@ -192,11 +214,13 @@ function offlineLogin(c, message = null, extra = null) {
   const all = offlineKids();
   const k = all[c.id] || { id: c.id, progress: {}, sessions: [], errors: [], seen: [] };
   Object.assign(k, { name: c.name, avatar: c.avatar, code: c.code, unlocked: c.unlocked, autoAdvance: c.autoAdvance });
-  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; } // nur aus einem Link der Coachin
+  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; if (extra.contact) k.contact = extra.contact; } // nur aus einem Link der Coachin
+  k.mailbox ||= [];
   k.inbox ||= [];
   if (message) {
     const mid = String(message.length) + ':' + message.slice(0, 40);
     if (!k.seen.includes(mid) && !k.inbox.some(x => x.id === mid)) k.inbox = [{ id: mid, text: message }];
+    if (!k.mailbox.some(x => x.text === message)) k.mailbox.push({ text: message, ts: new Date().toISOString() });
   }
   saveOffline(k);
   state.offline = true; state.code = null; state.mode = 'kid';
@@ -253,7 +277,7 @@ function renderMap(focusId = null) {
   const nextId = list.find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id;
   const nextG = nextGalaxy(g.id), gDone = galaxyDone(g.id, state.progress);
   const height = 90 + (nodes.length - 1 + (nextG ? 1 : 0)) * SPACING + 120;
-  const chain = chainOf(g.id), subjects = [...new Set(GALAXIES.filter(x => x.level === g.level).map(x => x.short))];
+  const chain = chainOf(g.id);
 
   let pathD = '';
   nodes.forEach((n, i) => { const { x, y } = planetPos(i); pathD += (i ? ' L ' : 'M ') + `${x} ${y}`; });
@@ -263,13 +287,12 @@ function renderMap(focusId = null) {
   $app.innerHTML = `
     ${topbar()}
     ${dm ? `<button class="daily" id="daily"><span class="daily-i">🎯</span><span class="daily-t"><b>Tagesmission:</b> ${esc(dm.planet.name)}<small>${doneToday ? '✅ Heute schon geübt – super!' : esc(dm.why)}</small></span><span class="daily-go">Los ➜</span></button>` : ''}
-    <nav class="levels" aria-label="Stufe">
-      ${LEVELS.map(l => `<button class="level" data-l="${l.id}" aria-pressed="${l.id === g.level}" title="${esc(l.sub)}"><span class="li">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
+    <nav class="subjects" role="tablist" aria-label="Fach">
+      ${LEVELS.map(l => `<button class="subject" role="tab" data-l="${l.id}" aria-selected="${l.id === g.level}"><span class="sj-i">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
     </nav>
-    <nav class="tabs" role="tablist">
-      ${subjects.map(sub => { const c = GALAXIES.filter(x => x.level === g.level && x.short === sub), target = sub === g.short ? g : c[0]; return `<button class="tab" role="tab" data-g="${target.id}" aria-selected="${sub === g.short}">${c[0].icon} ${esc(sub)}<small>${esc(target.name)}</small></button>`; }).join('')}
-    </nav>
-    ${chain.length > 1 ? `<nav class="chain" aria-label="Galaxien-Reise">${chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓' : (i + 1) + '.'} ${x.icon} ${esc(x.name.replace(/-?Galaxie$/, '').replace(/-$/, ''))}</button>`).join('')}</nav>` : ''}
+    <nav class="chain" aria-label="Themen">${chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓ ' : ''}${x.icon} ${esc(x.name)}</button>`).join('')}</nav>
+    ${getProfile().placement?.[g.level] ? '' : `<button class="placement-cta" id="placement"><span>🧭</span><span><b>Neu hier? Mach den Einstufungstest ${g.level === 'mathe' ? 'Mathe' : 'Deutsch'}</b><small>Ein kurzes Quiz – danach weißt du, wo du starten kannst.</small></span></button>`}
+    <div class="topic-head"><b>${g.icon} ${esc(g.name)}</b><span>${esc(g.grade)} · ${esc(g.desc)}</span></div>
     <div class="map" id="map" style="height:${height}px">
       <svg class="path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}"/></svg>
       ${nodes.map((node, i) => {
@@ -301,6 +324,7 @@ function renderMap(focusId = null) {
     ${navBar('map')}`;
 
   bindChrome();
+  document.getElementById('placement')?.addEventListener('click', () => startPlacement(g.level));
   document.getElementById('daily')?.addEventListener('click', () => {
     if (dm.planet.galaxy !== g.id) { state.galaxy = dm.planet.galaxy; store.set('galaxy', state.galaxy); renderMap(dm.planet.id); }
     else focusPlanet(dm.planet.id);
@@ -312,17 +336,19 @@ function renderMap(focusId = null) {
     if (gDone) confetti(20);
     state.galaxy = nextG.id; store.set('galaxy', state.galaxy); renderMap(first.id); scrollTo(0, 0);
   });
-  $app.querySelectorAll('.level').forEach(b => b.onclick = () => {
-    const same = GALAXIES.filter(x => x.level === b.dataset.l);
-    state.galaxy = (same.find(x => x.short === g.short) || same[0]).id; store.set('galaxy', state.galaxy); renderMap();
+  $app.querySelectorAll('.subject').forEach(b => b.onclick = () => {
+    store.set('galaxy_' + g.level, g.id); // pro Fach merken, wo man zuletzt war
+    const same = GALAXIES.filter(x => x.level === b.dataset.l), last = store.get('galaxy_' + b.dataset.l, null);
+    state.galaxy = (same.find(x => x.id === last) || same[0]).id; store.set('galaxy', state.galaxy); renderMap(); scrollTo(0, 0);
   });
+  document.querySelector('.chain-step.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
   // Rakete parken
   const rocketAt = store.get('rocket_' + g.id + (kid ? '_' + kid.code : ''), null);
   const startId = (rocketAt && ((PLANET_BY_ID[rocketAt] && open(rocketAt)) || (STATIONS[rocketAt] && galaxyOfNode(rocketAt) === g.id))) ? rocketAt : (nextId || list[0].id);
   placeRocket(startId, false);
   const startEl = $app.querySelector(`.pl[data-id="${startId}"], .pl[data-st="${startId}"]`);
-  if (startEl) setTimeout(() => startEl.scrollIntoView({ block: 'center', behavior: state.settings.calm ? 'auto' : 'smooth' }), 50);
+  if (startEl) setTimeout(() => { if (startEl.getBoundingClientRect().bottom > innerHeight - 90) startEl.scrollIntoView({ block: 'center', behavior: state.settings.calm ? 'auto' : 'smooth' }); }, 50); // nur scrollen, wenn die Rakete nicht sichtbar ist
 
   $app.querySelectorAll('.pl[data-st]').forEach(el => el.onclick = () => {
     const st = STATIONS[el.dataset.st];
@@ -458,7 +484,7 @@ const COMFORT = ['Fast! Fehler helfen beim Lernen.', 'Nicht schlimm – schau ma
 
 function runMission(p, moodB) {
   const tasks = p.tasks || generateMission(p.id, null, p.level || 2);
-  const m = { p, tasks, i: 0, correct: 0, errors: [], tips: 0, started: Date.now(), moodB, active: true, lives: p.lives || 0 };
+  const m = { p, tasks, i: 0, correct: 0, errors: [], tips: 0, started: Date.now(), moodB, active: true, lives: p.lives || 0, results: [] };
   runMission.current = m;
   const isMath = p.galaxy === 'zahlen';
 
@@ -469,11 +495,11 @@ function runMission(p, moodB) {
       <div class="mission-top">
         <button class="icon-btn" id="quit" aria-label="Mission abbrechen">✕</button>
         <div class="fuel" aria-hidden="true"><div class="fuel-fill" style="width:${pct}%"></div><span class="fuel-rocket ${look().ship === '🚀' ? '' : 'norot'}" style="left:${pct}%">${look().ship}</span></div>
-        ${p.lives ? `<span class="hearts" id="hearts" aria-label="${m.lives} Leben">${'❤️'.repeat(m.lives)}${'🤍'.repeat(p.lives - m.lives)}</span><span class="fuel-count">${m.correct}/${p.target}</span>` : `<span class="fuel-count">${m.i + 1}/${tasks.length}</span>`}
+        ${p.lives ? `<span class="hearts" id="hearts" aria-label="${m.lives} Leben">${'❤️'.repeat(m.lives)}${'🤍'.repeat(p.lives - m.lives)}</span><span class="fuel-count">${m.correct}/${p.target}</span>` : `<span class="fuel-count">${p.placement ? '🧭' : `${m.i + 1}/${tasks.length}`}</span>`}
       </div>
-      ${p.level ? `<div class="lvl-tag">${PLANET_LEVELS[p.level - 1].medal} ${esc(p.name)} · Stufe ${p.level}</div>` : p.station ? `<div class="lvl-tag">🛰️ ${esc(p.name)}</div>` : ''}
+      ${p.level ? `<div class="lvl-tag">${PLANET_LEVELS[p.level - 1].medal} ${esc(p.name)} · Stufe ${p.level}</div>` : p.station ? `<div class="lvl-tag">🛰️ ${esc(p.name)}</div>` : p.placement ? `<div class="lvl-tag">🧭 ${esc(p.name)} · Aufgabe ${m.i + 1}</div>` : ''}
       <section class="panel task">
-        <button class="hint-bulb" id="tip" aria-label="Hinweis vom Astronauten" title="Ich weiß nicht weiter">💡</button>
+        <button class="hint-bulb ${p.placement ? 'hidden' : ''}" id="tip" aria-label="Hinweis vom Astronauten" title="Ich weiß nicht weiter">💡</button>
         <div class="prompt-row">
           <p class="prompt ${isMath && ['big', 'house'].includes(t.visual.type) ? 'math' : ''}">${esc(t.prompt)}</p>
           <button class="icon-btn" id="say" aria-label="Vorlesen">🔊</button>
@@ -501,8 +527,8 @@ function runMission(p, moodB) {
     // Astronaut Nova erklärt: auf Knopfdruck (💡) oder nach einem Fehler
     let tipShown = false;
     const sayHint = h => {
-      if (h.saysyll) speak(h.text + ' ' + h.saysyll.join(' … '), .75);
-      else if (h.sayslow) speak(`${h.text} Hör genau: ${h.sayslow.split('').join(' ')} … ${h.sayslow}`, .75);
+      if (h.saysyll) speak(`${h.text} ${h.saysyll.join(', ')}.`, .85);
+      else if (h.sayslow) speak(`${h.text} Hör genau: ${h.sayslow}.`, .85);
       else speak(h.text);
     };
     const showHint = (after = null) => {
@@ -532,6 +558,7 @@ function runMission(p, moodB) {
       if (!m.active || runMission.current !== m) return;
       m.i++;
       if (p.lives && (m.correct >= p.target || m.lives <= 0)) return finish();
+      if (p.placement) { const last = m.results.slice(-6); if (last.filter(x => !x.ok).length >= 4) return finish(); } // zu schwer -> freundlich beenden
       if (m.i < tasks.length) renderTask(); else finish();
     };
     document.getElementById('next').onclick = next;
@@ -539,6 +566,13 @@ function runMission(p, moodB) {
     // Antwort auswerten (Auswahl oder eingetippte Zahl)
     const answer = (o, markRight, markWrong) => {
       $app.querySelectorAll('.opt, .numpad button').forEach(b => b.disabled = true);
+      if (p.placement) { // neutral: kein Richtig/Falsch, keine Hinweise
+        m.results.push({ topic: t.topic, planet: t.src, ok: !!o.correct });
+        if (o.correct) m.correct++; else m.errors.push({ task: t.label, given: o.label, expected: t.options.find(x => x.correct).label, type: o.type || 'sonstiges', planetId: t.src });
+        const fb = document.getElementById('fb'); fb.className = 'feedback'; fb.textContent = '👍 Danke! Weiter geht’s.';
+        $app.querySelectorAll('.opt').forEach(b => b.classList.add('fade')); document.getElementById('numd')?.classList.add('neutral');
+        setTimeout(next, 650); return;
+      }
       clearTimeout(runMission.nudge);
       document.getElementById('tip').disabled = true;
       $app.querySelector('.visual')?.classList.remove('flashed'); document.getElementById('flash')?.classList.add('hidden');
@@ -611,6 +645,7 @@ function runMission(p, moodB) {
     const isAct = !!p.activity;
     const wasFailed = !isAct && (state.progress[p.id]?.attempts || 0) > 0 && !((state.progress[p.id]?.bestStars || 0) >= 1);
     const before = new Set(PLANETS.filter(x => open(x.id)).map(x => x.id));
+    if (p.placement) return finishPlacement(p, m, tasks);
     const level = p.level || null;
     const played = p.lives ? m.i : tasks.length; // im Stations-Quiz zählen nur die gespielten Aufgaben
     const won = p.lives ? m.correct >= p.target && m.lives > 0 : null;
@@ -646,6 +681,46 @@ function runMission(p, moodB) {
       : { missions: 1, perfect: m.correct === tasks.length ? 1 : 0, tipsUsed: m.tips, brave: m.moodB && m.moodB <= 2 ? 1 : 0, comebacks: wasFailed && stars >= 1 ? 1 : 0, profi: level === 3 && stars >= 1 ? 1 : 0 });
   };
 }
+// ---------- Einstufungstest ----------
+function startPlacement(subject) {
+  const items = PLACEMENT[subject];
+  const s = openModal(`<div style="text-align:center"><div class="st-big">🧭</div><h2>Einstufungstest ${subject === 'mathe' ? 'Mathe' : 'Deutsch'}</h2>
+    <p>Ein kurzes Quiz mit Aufgaben von leicht bis schwer. Es ist <b>keine Prüfung</b> und es gibt keine Noten!</p>
+    <p class="who-sub">Wenn es zu schwer wird, hört das Quiz von selbst auf. Danach siehst du, mit welchem Thema du am besten startest.${state.mode === 'kid' ? ' Deine Coachin sieht das Ergebnis auch.' : ''}</p></div>
+    <div class="sheet-actions"><button class="btn primary block" id="start-mission">🧭 Los geht’s</button><button class="btn block" id="close">Später</button></div>`, { center: true });
+  s.querySelector('#close').onclick = () => closeModal();
+  s.querySelector('#start-mission').onclick = () => {
+    closeModal();
+    const tasks = items.map(([topic, pid, lvl]) => ({ ...generateMission(pid, 1, lvl)[0], src: pid, topic }));
+    tasks.forEach(t => { delete t.flash; });
+    runMission({ id: 'einstufung', name: `Einstufung ${subject === 'mathe' ? 'Mathe' : 'Deutsch'}`, subject, galaxy: subject, activity: true, placement: true, tasks }, null);
+  };
+}
+async function finishPlacement(p, m, tasks) {
+  const ev = evaluatePlacement(p.subject, m.results), ts = new Date().toISOString();
+  const pf = getProfile(); pf.placement = { ...(pf.placement || {}), [p.subject]: { ts, ...ev, correct: m.correct, asked: m.results.length } }; saveProfile(pf);
+  const durationSec = Math.round((Date.now() - m.started) / 1000);
+  if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.sessions.push({ ts, planetId: 'einstufung', correct: m.correct, total: m.results.length, stars: 0, moodBefore: null, moodAfter: null, tips: 0, durationSec }); for (const e of m.errors) k.errors.push({ ts, ...e }); });
+  else if (state.mode === 'kid') { try { setKid(await apiCall('/api/kid/result', { method: 'POST', body: { planetId: 'einstufung', correct: m.correct, total: m.results.length, errors: m.errors, durationSec, placement: { subject: p.subject, ...pf.placement[p.subject] } } })); } catch { } }
+  renderPlacementResult(p.subject);
+}
+function renderPlacementResult(subject) {
+  const pl = getProfile().placement?.[subject]; if (!pl) return renderMap();
+  const rec = GALAXIES.find(g => g.id === pl.recommend);
+  $app.innerHTML = `${topbar()}
+    <section class="screen">
+      <div class="panel result"><div class="st-big">🧭</div><h2>Geschafft! Danke fürs Mitmachen.</h2>
+        <p>Du hast ${pl.asked} Aufgaben gelöst. Hier ist dein Ergebnis für <b>${subject === 'mathe' ? 'Mathe' : 'Deutsch'}</b>:</p>
+        <ul class="pl-list">${pl.topics.map(t => { const g = GALAXIES.find(x => x.id === t.topic); return `<li class="pl-${t.status}"><span>${PLACEMENT_STATUS[t.status].icon}</span><span>${g.icon} ${esc(g.name)}</span><small>${PLACEMENT_STATUS[t.status].label}</small></li>`; }).join('')}</ul>
+        <div class="new-planet">🚀 Unser Tipp: Starte mit <b>${rec.icon} ${esc(rec.name)}</b></div>
+        <div class="sheet-actions"><button class="btn primary block" id="go-rec">Los geht’s mit ${esc(rec.name)}</button><button class="btn block" id="back">Zur Karte</button></div>
+      </div></section>${navBar('map')}`;
+  bindChrome();
+  speak(`Geschafft! Unser Tipp: Starte mit ${rec.name}.`);
+  document.getElementById('go-rec').onclick = () => { state.galaxy = rec.id; store.set('galaxy', rec.id); renderMap(planetsOf(rec.id)[0].id); };
+  document.getElementById('back').onclick = () => renderMap();
+}
+
 function localResult(id, correct, total, stars, level = 2) {
   const pr = state.progress[id] ||= { bestStars: 0, attempts: 0, correct: 0, total: 0 };
   pr.lv = levelStars(pr); // ältere Spielstände übernehmen
@@ -683,6 +758,10 @@ function renderVisual(v, planetId) {
       return `<div class="story">${esc(v.text)}</div>`;
     case 'listen':
       return `<button class="listen-btn" data-say="${esc(v.say)}" aria-label="Wort anhören"><span class="lb-i">🔊</span><span>Nochmal anhören</span></button>`;
+    case 'hands': {
+      const hand = k => `<div class="hand">${[0, 1, 2, 3, 4].map(i => `<span class="finger f${i} ${i < k ? 'up' : ''}"></span>`).join('')}<span class="palm"></span></div>`;
+      return `<div class="hands" role="img" aria-label="Zwei Hände">${hand(Math.min(5, v.n))}${hand(Math.max(0, v.n - 5))}</div>`;
+    }
     case 'compare': {
       const box = pts => `<div class="cmp-box">${pts.map(([x, y]) => `<span class="cmp-dot" style="left:${x}%;top:${y}%"></span>`).join('')}</div>`;
       return `<div class="compare" role="img" aria-label="Zwei Gruppen mit Punkten">${box(v.a)}${box(v.b)}</div>`;
@@ -794,6 +873,13 @@ async function coachLogin() {
     allowed = user ? (await user.isOwner()) || (await user.canEdit()) : false;
   } catch { allowed = false; }
   if (!sheet.isConnected) return;
+  const coachUrl = document.querySelector('meta[name="sh-coach-url"]')?.content;
+  if (!allowed && coachUrl && !window.claude?.use) { // öffentliche Website: Coach-Bereich liegt auf claude.ai
+    sheet.innerHTML = `<h2>🔐 Coach-Login</h2><p>Der Coach-Bereich öffnet sich in einem neuen Fenster (Anmeldung mit dem Claude-Konto und PIN).</p>
+      <div class="sheet-actions"><a class="btn primary block" href="${esc(coachUrl)}" target="_blank" rel="noopener">Zum Coach-Bereich</a><button class="btn block" id="ok">Abbrechen</button></div>`;
+    sheet.querySelector('#ok').onclick = () => closeModal();
+    return;
+  }
   if (!allowed) {
     sheet.innerHTML = `<h2>🔐 Coach-Login</h2>
       <p>Der Coach-Bereich ist nur für das Team von ${APP_NAME}. Öffne die App dafür auf claude.ai und melde dich mit deinem Claude-Konto an.</p>
@@ -819,11 +905,11 @@ async function openCoach() {
 // ---------- Profil: Statistik, Pokale, eigene Wörter (pro Kind bzw. Gerät) ----------
 const profileKey = () => (state.mode === 'kid' ? 'prof_srv_' + (state.kid?.code || '') : 'prof_public');
 function getProfile() {
-  if (state.mode === 'kid' && state.offline) { const k = offlineKids()[state.kid.id] || {}; return { stats: k.stats, trophies: k.trophies, ownWords: k.ownWords, look: k.look }; }
+  if (state.mode === 'kid' && state.offline) { const k = offlineKids()[state.kid.id] || {}; return { stats: k.stats, trophies: k.trophies, ownWords: k.ownWords, look: k.look, placement: k.placement, stations: k.stations }; }
   return store.get(profileKey(), {});
 }
 function saveProfile(p) {
-  if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.stats = p.stats; k.trophies = p.trophies; k.ownWords = p.ownWords; k.look = p.look; });
+  if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.stats = p.stats; k.trophies = p.trophies; k.ownWords = p.ownWords; k.look = p.look; k.placement = p.placement; k.stations = p.stations; });
   else store.set(profileKey(), p);
 }
 function earn(change) {
@@ -940,7 +1026,7 @@ function renderWords() {
       <div class="word-list">${l.words.map(w => `<button class="word-row" data-w="${esc(cleanWord(w))}"><span class="wr-w">${wordChip(w)}</span><span aria-hidden="true">🔊</span></button>`).join('')}</div>
       <div class="sheet-actions"><button class="btn block" id="readall">🔊 Alle vorlesen</button><button class="btn primary block" id="close">Fertig</button></div>`);
     sheet.querySelectorAll('[data-w]').forEach(x => x.onclick = () => speak(x.dataset.w, .75));
-    sheet.querySelector('#readall').onclick = () => speak(l.words.map(cleanWord).join(' … '), .7);
+    sheet.querySelector('#readall').onclick = () => speak(l.words.map(cleanWord).join('. ') + '.', .85);
     sheet.querySelector('#close').onclick = () => closeModal();
   });
   $app.querySelectorAll('[data-puzzle]').forEach(b => b.onclick = () => { const l = lists[Number(b.dataset.puzzle)]; renderGames({ words: l.words.map(cleanWord), listName: l.name }); });
@@ -956,14 +1042,16 @@ function renderWords() {
 }
 
 // ---------- Spiele-Ecke ----------
+const GAME_LEVELS = [{ id: 'start', name: 'Leicht', icon: '🌱' }, { id: 'vs34', name: 'Mittel', icon: '🚀' }, { id: 'us', name: 'Schwer', icon: '🌠' }];
 function renderGames(opts = {}) {
-  let level = store.get('game_level', (GALAXIES.find(x => x.id === state.galaxy) || GALAXIES[0]).level);
+  let level = store.get('game_level', 'start');
+  if (!GAME_LEVELS.some(l => l.id === level)) level = 'start';
   const draw = () => {
     $app.innerHTML = `${topbar()}
       <section class="screen">
         <h2 class="screen-title">🧩 Spiele-Ecke</h2>
         <p class="who-sub" style="margin-top:-6px">Knobeln, Rätseln, Spaß haben – und dabei ganz nebenbei lernen.</p>
-        <nav class="levels" aria-label="Schwierigkeit">${LEVELS.map(l => `<button class="level" data-l="${l.id}" aria-pressed="${l.id === level}"><span class="li">${l.icon}</span> ${esc(l.name)}</button>`).join('')}</nav>
+        <nav class="levels" aria-label="Schwierigkeit">${GAME_LEVELS.map(l => `<button class="level" data-l="${l.id}" aria-pressed="${l.id === level}"><span class="li">${l.icon}</span> ${esc(l.name)}</button>`).join('')}</nav>
         ${opts.words ? `<div class="panel words-banner">📚 Wort-Rätsel mit deinen Lernwörtern: <b>${esc(opts.listName)}</b> <button class="icon-btn small" id="nowords" aria-label="Lernwörter nicht verwenden">✕</button></div>` : ''}
         <div class="game-grid">${GAMES.map(gm => `<button class="game-card" data-g="${gm.id}"><span class="gc-i">${gm.icon}</span><span class="gc-n">${gm.name}</span><span class="gc-d">${esc(gm.desc[level])}${opts.words && ['kreuzwort', 'wortsuche'].includes(gm.id) ? ' · mit Lernwörtern' : ''}</span></button>`).join('')}</div>
       </section>${navBar('games')}`;
@@ -1073,6 +1161,9 @@ function renderMore() {
     <section class="screen">
       <h2 class="screen-title">☰ Mehr</h2>
       <div class="panel more-list">
+        ${coachContact() ? '<button class="more-item" id="m-msg"><span class="mi">💬</span><span>Nachricht an meine Coachin<small>Per WhatsApp oder E-Mail – auch für Eltern</small></span></button>' : ''}
+        ${state.mode === 'kid' ? '<button class="more-item" id="m-mail"><span class="mi">📡</span><span>Meine Funksprüche<small>Alle Nachrichten von deiner Coachin</small></span></button>' : ''}
+        <button class="more-item" id="m-place"><span class="mi">🧭</span><span>Einstufungstest<small>Wo stehe ich in Mathe und Deutsch?</small></span></button>
         <button class="more-item" id="m-me"><span class="mi">🎨</span><span>Mein Profil<small>Avatar, Spitzname, Raumschiff & Farben</small></span></button>
         <button class="more-item" id="m-settings"><span class="mi">⚙️</span><span>Schrift, Farben & Töne<small>Lesefolie, Silbenfarben, Vorlesen</small></span></button>
         <button class="more-item" id="m-remind"><span class="mi">⏰</span><span>Erinnerung einrichten<small>Für Eltern: Lernzeit im Handy-Kalender</small></span></button>
@@ -1085,6 +1176,24 @@ function renderMore() {
   bindChrome();
   document.getElementById('m-settings').onclick = openSettings;
   document.getElementById('m-me').onclick = renderProfile;
+  document.getElementById('m-msg')?.addEventListener('click', openMessageToCoach);
+  document.getElementById('m-mail')?.addEventListener('click', () => {
+    const box = state.offline ? (offlineKids()[state.kid.id]?.mailbox || []) : (state.kid?.mailbox || []);
+    const s = openModal(`<h2>📡 Meine Funksprüche</h2>
+      ${box.length ? `<div class="word-list">${[...box].reverse().map(x => `<button class="radio-msg mail-item" data-text="${esc(x.text)}"><small>${new Date(x.ts).toLocaleDateString('de-AT')}</small><br>${esc(x.text)} <span aria-hidden="true">🔊</span></button>`).join('')}</div>` : '<p>Noch keine Funksprüche. Wenn deine Coachin dir schreibt, findest du die Nachrichten hier.</p>'}
+      <div class="sheet-actions"><button class="btn primary block" id="ok">Schließen</button></div>`);
+    s.querySelectorAll('[data-text]').forEach(b => b.onclick = () => speak(b.dataset.text));
+    s.querySelector('#ok').onclick = () => closeModal();
+  });
+  document.getElementById('m-place').onclick = () => {
+    const pl = getProfile().placement || {};
+    const s = openModal(`<h2>🧭 Einstufungstest</h2><p>Welches Fach?</p>
+      <div class="sheet-actions">${LEVELS.map(l => `<button class="btn block" data-sub="${l.id}">${l.icon} ${esc(l.name)}${pl[l.id] ? ' – nochmal' : ''}</button>${pl[l.id] ? `<button class="btn block small-link" data-res="${l.id}">Letztes Ergebnis ${esc(l.name)} ansehen</button>` : ''}`).join('')}
+      <button class="btn block" id="close">Abbrechen</button></div>`, { center: true });
+    s.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { closeModal(); startPlacement(b.dataset.sub); });
+    s.querySelectorAll('[data-res]').forEach(b => b.onclick = () => { closeModal(); renderPlacementResult(b.dataset.res); });
+    s.querySelector('#close').onclick = () => closeModal();
+  };
   document.getElementById('m-remind').onclick = openReminder;
   document.getElementById('m-report')?.addEventListener('click', showReport);
   document.getElementById('m-home').onclick = () => { if (state.mode === 'kid') askLogout(); else renderStart(); };
@@ -1112,6 +1221,44 @@ function renderMore() {
     s.querySelector('#ok').onclick = () => closeModal();
   };
 }
+// ---------- Nachricht an die Coachin (Eltern oder Kind) ----------
+function coachContact() {
+  const c = state.mode === 'kid' ? (state.offline ? offlineKids()[state.kid.id]?.contact : state.kid?.contact) : null;
+  const meta = n => document.querySelector(`meta[name="sh-contact-${n}"]`)?.content || '';
+  const site = { name: meta('name'), phone: meta('phone'), email: meta('email') };
+  const x = c && (c.phone || c.email) ? c : site;
+  return x.phone || x.email ? x : null;
+}
+async function openMessageToCoach() {
+  const c = coachContact(); if (!c) return;
+  const kidName = state.mode === 'kid' ? state.kid.name : '';
+  const s = openModal(`<h2>💬 Nachricht an ${esc(c.name || 'die Coachin')}</h2>
+    <p class="who-sub">Für Eltern und Kinder: Schreib eine Nachricht – sie wird per WhatsApp oder E-Mail verschickt.</p>
+    <div class="seg" style="margin-bottom:8px">${['Wir haben heute geübt! 💪', 'Ich habe eine Frage: ', 'Können wir den Termin verschieben? '].map((t, i) => `<button data-tpl="${i}">${esc(t.replace(/:? $/, ''))}</button>`).join('')}</div>
+    <textarea id="cm" class="word-input" rows="5" maxlength="1500" placeholder="Deine Nachricht …"></textarea>
+    ${state.mode === 'kid' && state.offline ? '<label class="check-row"><input type="checkbox" id="cm-rep" checked> Fortschritts-Bericht mitschicken</label>' : ''}
+    <div class="sheet-actions">
+      ${c.phone ? '<button class="btn primary block" id="cm-wa">🟢 Per WhatsApp senden</button>' : ''}
+      ${c.email ? '<button class="btn block" id="cm-mail">✉️ Per E-Mail senden</button>' : ''}
+      <button class="btn block" id="cm-copy">📋 Text kopieren</button>
+      <button class="btn block" id="cm-close">Abbrechen</button>
+    </div>
+    ${c.email ? `<p class="who-sub">E-Mail: ${esc(c.email)}</p>` : ''}`);
+  const tpls = ['Wir haben heute geübt! 💪', 'Ich habe eine Frage: ', 'Können wir den Termin verschieben? '];
+  s.querySelectorAll('[data-tpl]').forEach(b => b.onclick = () => { const ta = s.querySelector('#cm'); ta.value = tpls[b.dataset.tpl]; ta.focus(); });
+  const build = async () => {
+    let t = s.querySelector('#cm').value.trim();
+    if (!t) { toast('Bitte zuerst eine Nachricht schreiben.'); return null; }
+    if (kidName) t = `${t}\n\n– ${kidName}`;
+    if (s.querySelector('#cm-rep')?.checked) { const k = offlineKids()[state.kid.id]; t += `\n\n🪐 ${APP_NAME}-Bericht von ${k.name}\n${await encodeReport(k)}`; }
+    return t;
+  };
+  s.querySelector('#cm-wa')?.addEventListener('click', async () => { const t = await build(); if (t) { window.open(waLink(c.phone, t), '_blank', 'noopener'); closeModal(); toast('WhatsApp wird geöffnet …'); } });
+  s.querySelector('#cm-mail')?.addEventListener('click', async () => { const t = await build(); if (t) { location.href = mailLink(c.email, `${APP_NAME}${kidName ? ': ' + kidName : ''}`, t); closeModal(); } });
+  s.querySelector('#cm-copy').onclick = async () => { const t = await build(); if (!t) return; try { await navigator.clipboard.writeText(t); toast('Kopiert!'); } catch { toast('Kopieren nicht möglich – bitte Text markieren.'); } };
+  s.querySelector('#cm-close').onclick = () => closeModal();
+}
+
 function openReminder() {
   const r = store.get('reminder', { time: '16:00', days: ['MO', 'TU', 'WE', 'TH', 'FR'] });
   const DAYS = [['MO', 'Mo'], ['TU', 'Di'], ['WE', 'Mi'], ['TH', 'Do'], ['FR', 'Fr'], ['SA', 'Sa'], ['SU', 'So']];
@@ -1152,6 +1299,11 @@ function openSettings() {
     <div class="setting"><span>Alles automatisch vorlesen</span>${seg('autoread', [[false, 'Aus'], [true, 'An']])}</div>
     <div class="setting"><span>Ruhiger Modus (weniger Bewegung)</span>${seg('calm', [[false, 'Aus'], [true, 'An']])}</div>
     <div class="setting"><span>Töne bei richtig/falsch</span>${seg('sound', [[true, '🔔 An'], [false, '🔕 Aus']])}</div>
+    <div class="setting"><span>Vorlese-Tempo</span>${seg('voiceSpeed', [['slow', '🐢 Langsam'], ['normal', 'Normal'], ['fast', '🐇 Zügig']])}</div>
+    <div class="setting"><span>Stimme</span>
+      ${germanVoices().length ? `<select id="voice-sel" class="word-input">${germanVoices().sort((a, b) => voiceScore(b) - voiceScore(a)).map(v => `<option value="${esc(v.name)}" ${voice?.name === v.name ? 'selected' : ''}>${esc(v.name.replace(/Microsoft |Google /, ''))} (${esc(v.lang)})${voiceScore(v) >= 50 ? ' ⭐' : ''}</option>`).join('')}</select>` : '<p class="who-sub">Auf diesem Gerät ist keine deutsche Stimme installiert.</p>'}
+      <button class="btn block" id="voice-test" style="margin-top:8px">🔊 Probe hören</button>
+      <p class="who-sub">⭐ = besonders natürlich klingend. Tipp: Am iPhone/iPad unter Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen eine „erweiterte“ deutsche Stimme laden – die klingt viel flüssiger.</p></div>
     <div class="sheet-actions"><button class="btn primary block" id="done">Fertig</button></div>`);
   sheet.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
     const k = b.dataset.k; let v = b.dataset.v;
@@ -1159,6 +1311,8 @@ function openSettings() {
     s[k] = v; applySettings();
     sheet.querySelectorAll(`[data-k="${k}"]`).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   });
+  sheet.querySelector('#voice-sel')?.addEventListener('change', e => { s.voiceName = e.target.value; applySettings(); pickVoice(); speak('So klinge ich. Viel Spaß beim Lernen!'); });
+  sheet.querySelector('#voice-test').onclick = () => speak('Hallo! Ich bin deine Vorlese-Stimme. Wie viele Punkte siehst du? Super gemacht!');
   sheet.querySelector('#done').onclick = () => { closeModal(); if (state.mode) (SCREENS[state.screen] || renderMap)(); };
 }
 
