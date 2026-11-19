@@ -1,3 +1,4 @@
+import { planetsOf } from './curriculum.js';
 // Serverlose Variante: Zugangscodes und Fortschrittsberichte als Text.
 // - Zugangscode (Coach -> Kind): Name + 13 Zeichen; enthält freigeschaltete Planeten,
 //   Avatar, Kind-ID und Prüfsumme. Als Link: #k-<name>-<code>[-m<funkspruch>]
@@ -10,7 +11,13 @@ export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 
   'nomen', 'mehrzahl', 'doppel', 'ie', 'dehnung', 'trennen', 'saetze',
   'negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung',
   'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma',
-  'lernwoerter', 'station'];
+  'lernwoerter', 'station',
+  'kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus', 'kps_sonne',
+  'br_erweitern', 'br_vergleich', 'br_minus', 'br_von', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch', 'br_sonne',
+  'f_bp', 'f_dt', 'f_gk', 'f_fwv', 'f_eiie', 'f_umlaut', 'f_lautpos', 'f_lautsonne',
+  'z_mehr', 'z_nachbar', 'z_groesser', 'z_stellen', 'z_strahl', 'z_doppel', 'z_freunde', 'z_sonne'];
+// v4-Codes speichern Freischaltungen pro Galaxie. NUR HINTEN ANHÄNGEN!
+export const GALAXY_CODE = ['zahlen', 'buchstaben', 'rechnen34', 'deutsch34', 'mathe58', 'deutsch58', 'klapustri', 'brueche', 'laute', 'zahleninsel'];
 // Reihenfolge ist Teil des Codes: NUR HINTEN ANHÄNGEN (max. 128)!
 export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟',
   // Tiere
@@ -38,11 +45,51 @@ export const prettyName = n => n.charAt(0) + n.slice(1).toLowerCase();
 // v3 (20 Zeichen): wie v2, aber 7 Bit Avatar (bis 128 Avatare)
 const FMT = { 13: { mb: 32n, ab: 5n, groups: [4, 4, 5] }, 19: { mb: 64n, ab: 5n, groups: [4, 5, 5, 5] }, 20: { mb: 64n, ab: 7n, groups: [5, 5, 5, 5] } };
 const group = (c, gs) => { const out = []; let i = 0; for (const g of gs) { out.push(c.slice(i, i + g)); i += g; } return out.join('-'); };
+// v4 (variabel, beginnt mit „X“): Freischaltungen pro Galaxie – kurz, auch bei sehr vielen Planeten.
+// Bits: [8 Prüfsumme][16 ID][7 Avatar][1 auto][5 Anzahl Galaxien] + je Galaxie [5 Galaxie][5 Länge][Maske]
+// (v1–v3 beginnen immer mit einem der ersten 16 Zeichen des Alphabets, v4 mit „X“ – eindeutig unterscheidbar.)
+const V4 = 'X';
+function encodeV4(nm, id, avatar, autoAdvance, unlocked) {
+  const bits = [];
+  const put = (v, w) => { for (let i = w - 1; i >= 0; i--) bits.push((v >> i) & 1); };
+  put(id & 0xffff, 16); put(avatar & 127, 7); put(autoAdvance ? 1 : 0, 1);
+  const groups = GALAXY_CODE.map((g, gi) => ({ gi, list: planetsOf(g).map(p => unlocked.includes(p.id)) })).filter(x => x.list.some(Boolean));
+  put(groups.length, 5);
+  for (const g of groups) { const len = g.list.lastIndexOf(true) + 1; put(g.gi, 5); put(len, 5); g.list.slice(0, len).forEach(b => bits.push(b ? 1 : 0)); }
+  const body = bits.join('');
+  const chk = Number(check8(BigInt('0b' + (body || '0')), nm));
+  const all = chk.toString(2).padStart(8, '0') + body;
+  const padded = all.padEnd(Math.ceil(all.length / 5) * 5, '0');
+  let out = '';
+  for (let i = 0; i < padded.length; i += 5) out += B32[parseInt(padded.slice(i, i + 5), 2)];
+  return V4 + out;
+}
+function decodeV4(nm, raw) {
+  let bits = '';
+  for (const c of raw.slice(1)) { const v = B32.indexOf(c); if (v < 0) return null; bits += v.toString(2).padStart(5, '0'); }
+  let pos = 0;
+  const take = w => { if (pos + w > bits.length) throw new Error('kurz'); const v = parseInt(bits.slice(pos, pos + w), 2); pos += w; return v; };
+  try {
+    const chk = take(8), start = pos;
+    const id = take(16), avatar = take(7), auto = take(1), ng = take(5), unlocked = [];
+    for (let g = 0; g < ng; g++) {
+      const gi = take(5), len = take(5), planets = GALAXY_CODE[gi] ? planetsOf(GALAXY_CODE[gi]) : [];
+      for (let i = 0; i < len; i++) if (take(1) && planets[i]) unlocked.push(planets[i].id);
+    }
+    if (/1/.test(bits.slice(pos)) && bits.length - pos >= 5) return null; // mehr als nur Füllbits übrig
+    if (chk !== Number(check8(BigInt('0b' + (bits.slice(start, pos) || '0')), nm))) return null;
+    return { id, avatar: AVATARS[avatar] || AVATARS[0], autoAdvance: auto === 1, unlocked };
+  } catch { return null; }
+}
 export function encodeKidCode({ name, id, avatar = 0, autoAdvance = true, unlocked = [] }) {
   const nm = cleanName(name);
   let mask = 0n, maxIdx = -1;
   CODE_ORDER.forEach((pid, i) => { if (unlocked.includes(pid)) { mask |= 1n << BigInt(i); maxIdx = i; } });
-  const len = avatar >= 32 ? 20 : maxIdx < 32 ? 13 : 19, { mb, ab, groups } = FMT[len];
+  if (avatar >= 32 || maxIdx >= 32) { // kurzer v1-Code reicht nicht -> kompaktes v4
+    const raw = encodeV4(nm, id, avatar, autoAdvance, unlocked);
+    return `${nm}-${raw.match(/.{1,5}/g).join('-')}`;
+  }
+  const len = 13, { mb, ab, groups } = FMT[len];
   const top = mb + 1n + ab + 16n;
   const body = (BigInt(id & 0xffff) << (mb + 1n + ab)) | (BigInt(avatar & 127) << (mb + 1n)) | ((autoAdvance ? 1n : 0n) << mb) | mask;
   const n = (check8(body, nm) << top) | body;
@@ -53,6 +100,10 @@ export function decodeKidCode(str) {
   const m = /^([A-Z]+)-?([0-9A-Z-]+)$/.exec(s);
   if (!m) return null;
   const raw = m[2].replace(/-/g, '');
+  if (raw[0] === V4) {
+    const d = decodeV4(m[1], raw); if (!d) return null;
+    return { name: prettyName(m[1]), ...d, code: `${m[1]}-${raw.match(/.{1,5}/g).join('-')}` };
+  }
   const f = FMT[raw.length]; if (!f) return null;
   const { mb, ab } = f, top = mb + 1n + ab + 16n;
   const n = fromB32(raw); if (n === null) return null;
@@ -71,7 +122,8 @@ function bytesToB32(bytes) { let bits = 0, val = 0, out = ''; for (const b of by
 function b32ToBytes(s) { let bits = 0, val = 0; const out = []; for (const c of s) { const v = B32.indexOf(c); if (v < 0) return null; val = ((val << 5) | v) & 0xffff; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); }
 
 export function kidHash(code, message, extra = '') {
-  let h = 'k-' + code.replace(/-/g, '').toLowerCase().replace(/^([a-z]+)/, '$1-');
+  const [nm, ...rest] = code.split('-');
+  let h = `k-${nm.toLowerCase()}-${rest.join('').toLowerCase()}`;
   if (message) h += '-m' + bytesToB32(new TextEncoder().encode(message.slice(0, 160))).toLowerCase();
   if (extra) h += '-x' + extra.toLowerCase();
   return h;
@@ -102,9 +154,13 @@ export const linkExtra = k => {
 };
 export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null });
 export function parseKidHash(hash) {
-  const m = /^#?k-([a-z]+)-([0-9a-z]{20}|[0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
+  const m = /^#?k-([a-z]+)-([0-9a-z]{4,60})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
-  const kid = decodeKidCode(`${m[1]}-${m[2]}`);
+  let kid = decodeKidCode(`${m[1]}-${m[2]}`);
+  if (!kid) { // ältere Links: Name und Code wurden manchmal an der falschen Stelle getrennt -> Prüfsumme findet die richtige Stelle
+    const all = m[1] + m[2];
+    for (let i = 1; i < all.length - 8 && !kid; i++) if (/^[a-z]+$/i.test(all.slice(0, i))) kid = decodeKidCode(`${all.slice(0, i)}-${all.slice(i)}`);
+  }
   if (!kid) return null;
   let message = null;
   if (m[3]) { const b = b32ToBytes(m[3].toUpperCase()); if (b) { try { message = new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { } } }

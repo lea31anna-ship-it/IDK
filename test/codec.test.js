@@ -23,7 +23,8 @@ test('Zugangscode hin und zurück', () => {
 });
 test('langer Code für höhere Stufen', () => {
   const code = encodeKidCode({ name: 'Ela', id: 9, avatar: 1, unlocked: ['mengen', 'gleichung', 'komma'] });
-  assert.match(code, /^ELA-[2-9A-Z]{4}-[2-9A-Z]{5}-[2-9A-Z]{5}-[2-9A-Z]{5}$/);
+  assert.match(code, /^ELA-X[2-9A-Z-]+$/, 'kompaktes v4-Format');
+  assert.ok(code.length <= 28, 'Code bleibt kurz: ' + code);
   assert.deepEqual(decodeKidCode(code).unlocked, ['mengen', 'gleichung', 'komma']);
   assert.deepEqual(parseKidHash('#' + kidHash(code, 'Hi')).unlocked, ['mengen', 'gleichung', 'komma']);
 });
@@ -58,4 +59,19 @@ test('Bericht überträgt Stufen und Stations-Sessions', async () => {
   assert.deepEqual(r.progress.mal3.lv, { 1: 3, 2: 2, 3: 0 });
   assert.equal(r.sessions[0].level, 2); assert.equal(r.sessions[1].planetId, 'station');
   assert.equal(r.errors[0].planetId, 'plus10');
+});
+
+test('Viele Planeten und Förderwelt im Code, alte Links bleiben gültig', async () => {
+  const { PLANETS } = await import('../public/js/curriculum.js');
+  const all = PLANETS.map(p => p.id);
+  for (let k = 0; k < 50; k++) {
+    const un = all.filter(() => Math.random() < 0.3), av = Math.floor(Math.random() * 100);
+    const code = encodeKidCode({ name: 'Zoe', id: k + 1, avatar: av, autoAdvance: k % 2 === 0, unlocked: un });
+    const d = decodeKidCode(code);
+    assert.deepEqual(d.unlocked.slice().sort(), un.slice().sort());
+    assert.equal(parseKidHash('#' + kidHash(code, 'Hi')).id, k + 1);
+  }
+  // bisherige Codes
+  assert.deepEqual(decodeKidCode('MIA-5ZRC-QJW2-2A2A3').unlocked, ['mengen', 'mal3', 'anlaut']);
+  assert.equal(decodeKidCode('DORA-2SAXN-BGJ22-22222-2A223').avatar, '🦥');
 });

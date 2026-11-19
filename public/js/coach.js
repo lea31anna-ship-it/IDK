@@ -1,4 +1,4 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS } from './curriculum.js';
+import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
@@ -333,7 +333,7 @@ function tabUnlock(el, k) {
       <h2>Welche Themen bearbeitet ihr gerade?</h2>
       <p class="muted" style="margin-top:-6px">Angehakte Planeten sind für ${esc(k.name)} offen (mit 🚩 markiert). Gespielte Planeten bleiben immer offen.${S.lite ? ' Nach dem Speichern bekommst du einen neuen Link, den du den Eltern schickst.' : ''}</p>
       <label class="switch"><input type="checkbox" id="auto" ${k.autoAdvance ? 'checked' : ''}> <span><strong>Automatisch weiterschalten</strong> – nach einem geschafften Planeten öffnet sich der nächste von selbst</span></label>
-      ${GALAXIES.map(g => `<h3 style="font-size:1em;margin-top:20px">${g.icon} ${esc(g.name)} <button class="btn small" data-all="${g.id}">alle</button> <button class="btn small" data-none="${g.id}">keine</button></h3>
+      ${[...GALAXIES].sort((a, b) => LEVELS.findIndex(l => l.id === a.level) - LEVELS.findIndex(l => l.id === b.level)).map(g => `<h3 style="font-size:1em;margin-top:20px">${g.icon} ${esc(g.name)} <span class="tag">${esc(LEVELS.find(l => l.id === g.level)?.name || "")}</span> <button class="btn small" data-all="${g.id}">alle</button> <button class="btn small" data-none="${g.id}">keine</button></h3>
         <div class="planet-grid">${planetsOf(g.id).map(p => `<label class="pcheck"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span><div class="pn">${esc(p.name)}</div><div class="pt">${esc(p.topic)}</div></span><span class="stars">${k.progress[p.id] ? starsHtml(k.progress[p.id].bestStars) : ''}</span></label>`).join('')}</div>`).join('')}
       <div class="row" style="margin-top:18px"><button class="btn primary" id="save">Speichern</button><span class="muted" id="saved"></span></div>
     </div>`;

@@ -22,6 +22,14 @@ Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
 | **VS 3–4** | Rechen-Nebel (9): Plus und Minus bis 100 und 1000, Mal mit Zehnern, halbschriftlich, Division mit Rest, Größen, Sachaufgaben | Wörter-Nebel (7): Großschreibung, Mehrzahl, Doppelmitlaute, ie/i, Dehnungs-h, Trennen, Leseverständnis |
 | **Unterstufe** | Mathe-Sternbild (10): negative Zahlen, Punkt vor Strich, Teilbarkeit, Potenzen, Brüche, Dezimalzahlen, Prozent, Gleichungen | Sprach-Sternbild (6): Wortarten, Präteritum, s/ss/ß, Nominalisierung, das/dass, Komma |
 
+**🌌 Galaxien-Reisen:** Pro Stufe und Fach können mehrere Galaxien hintereinander liegen. Am Ende einer Galaxie geht es über einen „Weiter“-Knopf in die nächste. In der Unterstufe Mathe zum Beispiel: Mathe-Sternbild → **Klapustri-Galaxie** (Klammer vor Punkt vor Strich, 7 Planeten; Nova zeigt den Rechenweg Schritt für Schritt) → **Brüche-Galaxie** (Erweitern, Vergleichen, Minus, Bruchteil von, gemischte Zahlen, mal Zahl, mal Bruch, Division; 9 Planeten). Code-Kinder bekommen mit „Automatisch weiterschalten“ die nächste Galaxie frei, sobald die vorige geschafft ist.
+
+**🌈 Förderwelt (Legasthenie & Dyskalkulie):**
+- **Laut-Galaxie:** b/p, d/t (auch am Wortende mit Verlängerungsprobe), g/k, f/w/v, ei/ie, e/ä und eu/äu (Ableitungsprobe), Laut-Detektiv (Anfang/Mitte/Ende), Laut-Sonne
+- **Zahlen-Insel:** Mehr oder weniger, Nachbarzahlen, Zahlendreher (34 oder 43?), Zehner und Einer mit Zehnerstangen, Zahlenstrahl, Verdoppeln und Halbieren, Zehnerfreunde, Insel-Sonne
+
+Insgesamt 89 Planeten in 10 Galaxien. Zugangscodes nutzen ab jetzt ein kompaktes Format, das nur freigeschaltete Galaxien speichert. Alle bisherigen Codes und Links funktionieren weiter.
+
 **🥉🥈🥇 Drei Stufen pro Planet** (wie Lektionen):
 - **Stufe 1, Entdecker:** 3 Antworten zur Auswahl, bei einigen Mathe-Planeten kleinere Zahlen (z. B. Mengen bis 5, Einmaleins bis ×5)
 - **Stufe 2, Pilot:** 4 Antworten

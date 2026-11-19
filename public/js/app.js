@@ -1,4 +1,4 @@
-import { PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET } from './curriculum.js';
+import { PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, nextGalaxy, galaxyDone } from './curriculum.js';
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf, stationQuiz } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
@@ -251,7 +251,9 @@ function renderMap(focusId = null) {
   const list = planetsOf(g.id), nodes = mapNodes(g.id);
   const kid = state.mode === 'kid' ? state.kid : null;
   const nextId = list.find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id;
-  const height = 90 + (nodes.length - 1) * SPACING + 120;
+  const nextG = nextGalaxy(g.id), gDone = galaxyDone(g.id, state.progress);
+  const height = 90 + (nodes.length - 1 + (nextG ? 1 : 0)) * SPACING + 120;
+  const chain = chainOf(g.id), subjects = [...new Set(GALAXIES.filter(x => x.level === g.level).map(x => x.short))];
 
   let pathD = '';
   nodes.forEach((n, i) => { const { x, y } = planetPos(i); pathD += (i ? ' L ' : 'M ') + `${x} ${y}`; });
@@ -265,8 +267,9 @@ function renderMap(focusId = null) {
       ${LEVELS.map(l => `<button class="level" data-l="${l.id}" aria-pressed="${l.id === g.level}" title="${esc(l.sub)}"><span class="li">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
     </nav>
     <nav class="tabs" role="tablist">
-      ${GALAXIES.filter(x => x.level === g.level).map(x => `<button class="tab" role="tab" data-g="${x.id}" aria-selected="${x.id === g.id}">${x.icon} ${esc(x.short)}<small>${esc(x.name)}</small></button>`).join('')}
+      ${subjects.map(sub => { const c = GALAXIES.filter(x => x.level === g.level && x.short === sub), target = sub === g.short ? g : c[0]; return `<button class="tab" role="tab" data-g="${target.id}" aria-selected="${sub === g.short}">${c[0].icon} ${esc(sub)}<small>${esc(target.name)}</small></button>`; }).join('')}
     </nav>
+    ${chain.length > 1 ? `<nav class="chain" aria-label="Galaxien-Reise">${chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓' : (i + 1) + '.'} ${x.icon} ${esc(x.name.replace(/-?Galaxie$/, '').replace(/-$/, ''))}</button>`).join('')}</nav>` : ''}
     <div class="map" id="map" style="height:${height}px">
       <svg class="path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}"/></svg>
       ${nodes.map((node, i) => {
@@ -291,6 +294,8 @@ function renderMap(focusId = null) {
           <span class="pl-medals">${isOpen && pr ? PLANET_LEVELS.map(L => `<span class="${ls[L.n] >= 1 ? '' : 'off'}" title="Stufe ${L.n}">${L.medal}</span>`).join('') : ''}</span>
         </button>`;
       }).join('')}
+      ${nextG ? (() => { const { x, y } = planetPos(nodes.length); return `<button class="pl next-galaxy ${gDone ? 'ready' : ''}" id="next-galaxy" data-g="${nextG.id}" style="left:${x}%;top:${y}px">
+        <span class="ng-orb">${nextG.icon}</span><span class="pl-name">${gDone ? 'Galaxie geschafft! Weiter:' : 'Nächste Galaxie:'}<br>${esc(nextG.name)}</span></button>`; })() : ''}
       <div class="rocket ${look().ship === '🚀' ? '' : 'norot'}" id="rocket" aria-hidden="true">${look().ship}</div>
     </div>
     ${navBar('map')}`;
@@ -300,7 +305,13 @@ function renderMap(focusId = null) {
     if (dm.planet.galaxy !== g.id) { state.galaxy = dm.planet.galaxy; store.set('galaxy', state.galaxy); renderMap(dm.planet.id); }
     else focusPlanet(dm.planet.id);
   });
-  $app.querySelectorAll('.tab').forEach(b => b.onclick = () => { state.galaxy = b.dataset.g; store.set('galaxy', state.galaxy); renderMap(); });
+  $app.querySelectorAll('.tab, .chain-step').forEach(b => b.onclick = () => { state.galaxy = b.dataset.g; store.set('galaxy', state.galaxy); renderMap(); scrollTo(0, 0); });
+  document.getElementById('next-galaxy')?.addEventListener('click', () => {
+    const first = planetsOf(nextG.id)[0];
+    if (!open(first.id)) { toast(`🔒 Schaffe zuerst alle Planeten dieser Galaxie – dann geht die Reise weiter!`); return; }
+    if (gDone) confetti(20);
+    state.galaxy = nextG.id; store.set('galaxy', state.galaxy); renderMap(first.id); scrollTo(0, 0);
+  });
   $app.querySelectorAll('.level').forEach(b => b.onclick = () => {
     const same = GALAXIES.filter(x => x.level === b.dataset.l);
     state.galaxy = (same.find(x => x.short === g.short) || same[0]).id; store.set('galaxy', state.galaxy); renderMap();
@@ -672,8 +683,20 @@ function renderVisual(v, planetId) {
       return `<div class="story">${esc(v.text)}</div>`;
     case 'listen':
       return `<button class="listen-btn" data-say="${esc(v.say)}" aria-label="Wort anhören"><span class="lb-i">🔊</span><span>Nochmal anhören</span></button>`;
+    case 'compare': {
+      const box = pts => `<div class="cmp-box">${pts.map(([x, y]) => `<span class="cmp-dot" style="left:${x}%;top:${y}%"></span>`).join('')}</div>`;
+      return `<div class="compare" role="img" aria-label="Zwei Gruppen mit Punkten">${box(v.a)}${box(v.b)}</div>`;
+    }
+    case 'tens':
+      return `<div class="tens" role="img" aria-label="${v.h ? v.h + ' Hunderter, ' : ''}${v.t} Zehner und ${v.o} Einer">${'<span class="t-plate"></span>'.repeat(v.h || 0)}${'<span class="t-bar"></span>'.repeat(v.t)}<span class="t-ones">${'<span class="t-cube"></span>'.repeat(v.o)}</span></div>`;
+    case 'numline': {
+      const W = 320, L = 16, Rr = 304, X = val => L + (Rr - L) * val / v.max;
+      let ticks = '';
+      for (let i = 0; i <= v.max; i += v.step) { const big = i % v.label === 0; ticks += `<line x1="${X(i)}" x2="${X(i)}" y1="${big ? 30 : 34}" y2="${big ? 50 : 46}" class="${big ? 'nl-big' : ''}"/>${big ? `<text x="${X(i)}" y="66" text-anchor="middle">${i}</text>` : ''}`; }
+      return `<svg class="numline" viewBox="0 0 ${W} 72" role="img" aria-label="Zahlenstrahl von 0 bis ${v.max} mit Pfeil"><line x1="${L}" x2="${Rr}" y1="40" y2="40" class="nl-axis"/>${ticks}<path d="M ${X(v.value)} 26 l -7 -14 h 14 z" class="nl-arrow"/></svg>`;
+    }
     case 'gapword':
-      return `<div><div class="gap-word">${esc(v.before)}<span class="gap">?</span>${esc(v.after)}</div><button class="listen-btn small" data-say="${esc(v.say)}" aria-label="Wort anhören"><span class="lb-i">🔊</span><span>Anhören</span></button></div>`;
+      return `<div>${v.emoji ? `<button class="emoji-big gap-emoji" data-say="${esc(v.say)}" aria-label="Wort anhören">${v.emoji}</button>` : ''}<div class="gap-word">${esc(v.before)}<span class="gap">?</span>${esc(v.after)}</div><button class="listen-btn small" data-say="${esc(v.say)}" aria-label="Wort anhören"><span class="lb-i">🔊</span><span>Anhören</span></button></div>`;
     case 'fracbar':
       return `<div class="fracbar" role="img" aria-label="${v.k} von ${v.n} Teilen gefärbt">${Array.from({ length: v.n }, (_, i) => `<span class="${i < v.k ? 'on' : ''}"></span>`).join('')}</div>`;
     default: return '';

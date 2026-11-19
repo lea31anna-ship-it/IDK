@@ -6,6 +6,7 @@ import { TASKS_PER_MISSION, PLANET_LEVELS } from './curriculum.js';
 
 import { rnd, pick, shuffle, reverseDigits, options, numFiller } from './util.js';
 import { GEN2 } from './exercises2.js';
+import { GEN3 } from './exercises3.js';
 export { shuffle };
 
 // ---------- Mathe ----------
@@ -229,7 +230,9 @@ function schreiben() {
   };
 }
 
-const GEN = { ...GEN2, mengen, zerlegen, plus10, minus10, plus20, minus20, geteilt, anlaut, vokale, silben, reime, bdpq, lesen, schreiben };
+// Erst beim ersten Gebrauch zusammensetzen (vermeidet Probleme mit der Ladereihenfolge der Module)
+let GEN = null;
+const gens = () => (GEN ||= { ...GEN2, ...GEN3, mengen, zerlegen, plus10, minus10, plus20, minus20, geteilt, anlaut, vokale, silben, reime, bdpq, lesen, schreiben });
 
 function rawMission(planetId, count, level) {
   const tasks = [];
@@ -240,7 +243,7 @@ function rawMission(planetId, count, level) {
     for (let i = 0; i < count; i++) tasks.push(malTask(n, ks[i % 10]));
     return tasks;
   }
-  const gen = planetId === 'malmix' ? () => (level === 1 ? malTask(rnd(2, 5), rnd(2, 5)) : malTask(rnd(2, 10), rnd(2, 10))) : GEN[planetId];
+  const gen = planetId === 'malmix' ? () => (level === 1 ? malTask(rnd(2, 5), rnd(2, 5)) : malTask(rnd(2, 10), rnd(2, 10))) : gens()[planetId];
   if (!gen) throw new Error('Unbekannter Planet: ' + planetId);
   const labels = new Set();
   let guard = 0;

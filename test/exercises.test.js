@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { PLANETS, ERROR_TYPES, isUnlocked, starsFor } from '../public/js/curriculum.js';
 import { generateMission } from '../public/js/exercises.js';
 
+// Aufgaben mit bewusst nur 2–3 Antworten (z. B. „b oder p?“, „Welche Zahl ist größer?“)
+const FEW = ['dasdass', 'slaute', 'wortarten', 'grossklein2', 'br_vergleich', 'br_sonne', 'z_mehr', 'z_groesser', 'z_sonne'];
 test('jeder Planet erzeugt gültige Missionen', () => {
   for (const p of PLANETS) {
     for (let run = 0; run < 40; run++) {
@@ -10,7 +12,7 @@ test('jeder Planet erzeugt gültige Missionen', () => {
       assert.equal(tasks.length, 10, p.id);
       for (const t of tasks) {
         assert.ok(t.options.length >= 2 && t.options.length <= 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
-        if (!['dasdass', 'slaute', 'wortarten', 'grossklein2'].includes(p.id)) assert.equal(t.options.length, 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
+        if (!FEW.includes(p.id) && !p.id.startsWith('f_')) assert.equal(t.options.length, 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
         assert.equal(t.options.filter(o => o.correct).length, 1, `${p.id}: genau eine richtige Antwort`);
         const labels = t.options.map(o => o.display ?? o.label);
         assert.equal(new Set(labels).size, labels.length, `${p.id}: doppelte Optionen ${labels}`);
@@ -65,13 +67,29 @@ test('Alle Planeten in allen 3 Stufen', async () => {
     assert.equal(tasks.length, L.tasks, `${p.id} Stufe ${L.n}`);
     for (const t of tasks) {
       assert.equal(t.options.filter(o => o.correct).length, 1);
-      if (L.n === 1 && !['dasdass', 'slaute', 'grossklein2'].includes(p.id)) assert.equal(t.options.length, 3, `${p.id} Stufe 1: ${t.options.length}`);
+      if (L.n === 1 && !FEW.includes(p.id) && !p.id.startsWith('f_')) assert.equal(t.options.length, 3, `${p.id} Stufe 1: ${t.options.length}`);
       if (t.input === 'number') assert.match(t.options.find(o => o.correct).label, /^−?\d+$/);
     }
     if (L.n === 3 && ['plus10', 'mal7', 'negativ', 'prozent'].includes(p.id)) assert.ok(tasks.every(t => t.input === 'number'), p.id + ' Profi tippt');
   }
   assert.ok(generateMission('mengen', null, 1).every(t => Number(t.options.find(o => o.correct).label) <= 5), 'Stufe 1 kleinere Mengen');
   assert.ok(generateMission('mengen', null, 3).every(t => t.flash), 'Blitzblick');
+  // Klapustri: Ergebnis stimmt mit echter Rechnung überein, Lösungsweg in Novas Hinweis
+  for (const id of ['kps_punkt', 'kps_klammer', 'kps_geteilt', 'kps_kette', 'kps_mix', 'kps_minus']) for (const t of generateMission(id, 30, 2)) {
+    const js = t.label.replace(/·/g, '*').replace(/:/g, '/').replace(/−/g, '-');
+    assert.equal(Number(t.options.find(o => o.correct).label), eval(js), t.label);
+    assert.ok(t.hint.text.includes('→'), 'Schritte im Hinweis');
+  }
+  // Brüche: keine falsche Antwort hat denselben Wert wie die richtige
+  const val = s => { const m = /^(\d+) (\d+)\/(\d+)$/.exec(s); if (m) return +m[1] + m[2] / m[3]; const f = /^(\d+)\/(\d+)$/.exec(s); return f ? f[1] / f[2] : Number(s); };
+  for (const id of ['br_minus', 'br_gemischt', 'br_malzahl', 'br_mal', 'br_durch']) for (const L of [1, 2, 3]) for (const t of generateMission(id, 30, L)) {
+    const c = val(t.options.find(o => o.correct).label);
+    for (const o of t.options.filter(o => !o.correct)) assert.ok(Math.abs(val(o.label) - c) > 1e-9, `${id}: ${o.label} = ${t.options.find(o => o.correct).label}`);
+  }
+  // Förderwelt: die Lücke ergibt wieder das Wort
+  for (const id of ['f_bp', 'f_dt', 'f_gk', 'f_fwv', 'f_eiie', 'f_umlaut']) for (const t of generateMission(id, 60, 2)) {
+    assert.equal(t.visual.before + t.options.find(o => o.correct).label + t.visual.after, t.label, id);
+  }
   // Stufen-Logik inkl. alter Spielstände
   assert.deepEqual(levelStars({ bestStars: 2 }), { 1: 2, 2: 2, 3: 0 });
   assert.ok(levelOpen({ bestStars: 2 }, 3) && !levelOpen({ lv: { 1: 1, 2: 0, 3: 0 } }, 3));

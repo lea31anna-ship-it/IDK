@@ -5,6 +5,7 @@ export const APP_NAME = 'Lerniversum';
 
 // Stufen (Österreich): Start = Volksschule 1.–2., dann Volksschule 3.–4., dann Unterstufe
 export const LEVELS = [
+  { id: 'foerder', name: 'Förderwelt', sub: 'Legasthenie & Dyskalkulie – Grundlagen in kleinen Schritten', icon: '🌈' },
   { id: 'start', name: 'VS 1–2', sub: 'Volksschule 1.–2. Klasse', icon: '🌱' },
   { id: 'vs34', name: 'VS 3–4', sub: 'Volksschule 3.–4. Klasse', icon: '🚀' },
   { id: 'us', name: 'Unterstufe', sub: '1.–4. Klasse Mittelschule / AHS', icon: '🌠' },
@@ -16,7 +17,17 @@ export const GALAXIES = [
   { id: 'deutsch34', name: 'Wörter-Nebel', short: 'Deutsch', icon: '📚', level: 'vs34', desc: 'Rechtschreibung & Leseverständnis' },
   { id: 'mathe58', name: 'Mathe-Sternbild', short: 'Mathe', icon: '📐', level: 'us', desc: 'Brüche, Prozent, Gleichungen' },
   { id: 'deutsch58', name: 'Sprach-Sternbild', short: 'Deutsch', icon: '✍️', level: 'us', desc: 'Grammatik & Rechtschreibung' },
+  // Galaxien-Ketten: gleiche Stufe + gleiches Fach = Reihenfolge, in der man weiterreist
+  { id: 'klapustri', name: 'Klapustri-Galaxie', short: 'Mathe', icon: '🧮', level: 'us', desc: 'Klammer vor Punkt vor Strich' },
+  { id: 'brueche', name: 'Brüche-Galaxie', short: 'Mathe', icon: '🍕', level: 'us', desc: 'Rechnen mit Brüchen' },
+  // Förderwelt
+  { id: 'laute', name: 'Laut-Galaxie', short: 'Deutsch', icon: '👂', level: 'foerder', desc: 'Ähnliche Laute unterscheiden (Legasthenie)' },
+  { id: 'zahleninsel', name: 'Zahlen-Insel', short: 'Mathe', icon: '🏝️', level: 'foerder', desc: 'Zahlvorstellung aufbauen (Dyskalkulie)' },
 ];
+/** Galaxien-Kette (gleiche Stufe, gleiches Fach) in Reiseroute-Reihenfolge */
+export const chainOf = galaxyId => { const g = GALAXIES.find(x => x.id === galaxyId); return GALAXIES.filter(x => x.level === g.level && x.short === g.short); };
+export const prevGalaxy = galaxyId => { const c = chainOf(galaxyId); return c[c.findIndex(x => x.id === galaxyId) - 1] || null; };
+export const nextGalaxy = galaxyId => { const c = chainOf(galaxyId); return c[c.findIndex(x => x.id === galaxyId) + 1] || null; };
 
 const mathBase = [
   { id: 'mengen', label: '⁘', name: 'Punkte-Planet', topic: 'Mengen bis 10 auf einen Blick erkennen' },
@@ -86,6 +97,47 @@ const deutsch58 = [
   { id: 'komma', label: ',', name: 'Komma-Sonne', topic: 'Komma vor Bindewörtern', boss: true },
 ];
 
+const klapustri = [
+  { id: 'kps_punkt', label: '·+', name: 'Punkt-Planet', topic: 'Punkt vor Strich' },
+  { id: 'kps_klammer', label: '( )', name: 'Klammer-Planet', topic: 'Klammern zuerst rechnen' },
+  { id: 'kps_geteilt', label: ':+', name: 'Geteilt-Planet', topic: 'Geteilt kommt vor Plus und Minus' },
+  { id: 'kps_kette', label: '+·−', name: 'Ketten-Planet', topic: 'Lange Rechenketten' },
+  { id: 'kps_mix', label: '(·)', name: 'Misch-Planet', topic: 'Klammer, Punkt und Strich gemischt' },
+  { id: 'kps_minus', label: '−( )', name: 'Minus-Klammer-Planet', topic: 'Minus vor der Klammer' },
+  { id: 'kps_sonne', label: 'KPS', name: 'Klapustri-Sonne', topic: 'Alle Klapustri-Regeln – die große Prüfung', boss: true },
+];
+const brueche = [
+  { id: 'br_erweitern', label: '×/×', name: 'Erweitern-Planet', topic: 'Brüche erweitern' },
+  { id: 'br_vergleich', label: '<>', name: 'Vergleichs-Planet', topic: 'Welcher Bruch ist größer?' },
+  { id: 'br_minus', label: '−', name: 'Bruch-Minus-Planet', topic: 'Brüche subtrahieren' },
+  { id: 'br_von', label: 'von', name: 'Bruchteil-Planet', topic: 'Bruchteile von Zahlen (¾ von 20)' },
+  { id: 'br_gemischt', label: '1½', name: 'Gemischte-Zahlen-Planet', topic: 'Unechte Brüche und gemischte Zahlen' },
+  { id: 'br_malzahl', label: '·n', name: 'Bruch-mal-Zahl-Planet', topic: 'Bruch mal ganze Zahl' },
+  { id: 'br_mal', label: '·', name: 'Bruch-mal-Bruch-Planet', topic: 'Bruch mal Bruch' },
+  { id: 'br_durch', label: ':', name: 'Bruch-Division-Planet', topic: 'Durch einen Bruch dividieren' },
+  { id: 'br_sonne', label: '🍕', name: 'Bruch-Sonne', topic: 'Alles über Brüche – die große Prüfung', boss: true },
+];
+const laute = [
+  { id: 'f_bp', label: 'b p', name: 'B-P-Planet', topic: 'Wird das Wort mit b oder p geschrieben?' },
+  { id: 'f_dt', label: 'd t', name: 'D-T-Planet', topic: 'd oder t? Auch am Wortende (Hund – Hunde)' },
+  { id: 'f_gk', label: 'g k', name: 'G-K-Planet', topic: 'g oder k? Auch am Wortende (Zug – Züge)' },
+  { id: 'f_fwv', label: 'f w v', name: 'F-W-V-Planet', topic: 'f, w oder v?' },
+  { id: 'f_eiie', label: 'ei ie', name: 'Ei-Ie-Planet', topic: 'ei oder ie?' },
+  { id: 'f_umlaut', label: 'ä äu', name: 'Umlaut-Planet', topic: 'e oder ä? eu oder äu?' },
+  { id: 'f_lautpos', label: '👂', name: 'Laut-Detektiv-Planet', topic: 'Wo hörst du den Laut: Anfang, Mitte oder Ende?' },
+  { id: 'f_lautsonne', label: '🔊', name: 'Laut-Sonne', topic: 'Alle Laute gemischt', boss: true },
+];
+const zahleninsel = [
+  { id: 'z_mehr', label: '⚖', name: 'Mehr-oder-weniger-Planet', topic: 'Wo sind mehr Punkte?' },
+  { id: 'z_nachbar', label: '±1', name: 'Nachbarzahlen-Planet', topic: 'Welche Zahl kommt davor oder danach?' },
+  { id: 'z_groesser', label: '34<43', name: 'Zahlendreher-Planet', topic: 'Welche Zahl ist größer? (34 oder 43)' },
+  { id: 'z_stellen', label: 'Z E', name: 'Zehner-Einer-Planet', topic: 'Zehner und Einer erkennen' },
+  { id: 'z_strahl', label: '|—|', name: 'Zahlenstrahl-Planet', topic: 'Zahlen am Zahlenstrahl finden' },
+  { id: 'z_doppel', label: '×2', name: 'Verdoppeln-Planet', topic: 'Verdoppeln und halbieren' },
+  { id: 'z_freunde', label: '+?=10', name: 'Zehnerfreunde-Planet', topic: 'Was fehlt bis 10 (bis 100)?' },
+  { id: 'z_sonne', label: '🏝️', name: 'Insel-Sonne', topic: 'Alles zur Zahlvorstellung', boss: true },
+];
+
 const HUES = [28, 200, 280, 140, 330, 50, 180, 250, 10, 100, 300, 220, 160, 40, 260, 120, 350, 70];
 
 export const PLANETS = [
@@ -95,6 +147,10 @@ export const PLANETS = [
   ...deutsch34.map((p, i) => ({ ...p, galaxy: 'deutsch34', index: i, hue: HUES[(i * 7 + 3) % HUES.length] })),
   ...mathe58.map((p, i) => ({ ...p, galaxy: 'mathe58', index: i, hue: HUES[(i * 5 + 9) % HUES.length] })),
   ...deutsch58.map((p, i) => ({ ...p, galaxy: 'deutsch58', index: i, hue: HUES[(i * 7 + 11) % HUES.length] })),
+  ...klapustri.map((p, i) => ({ ...p, galaxy: 'klapustri', index: i, hue: HUES[(i * 3 + 1) % HUES.length] })),
+  ...brueche.map((p, i) => ({ ...p, galaxy: 'brueche', index: i, hue: HUES[(i * 5 + 7) % HUES.length] })),
+  ...laute.map((p, i) => ({ ...p, galaxy: 'laute', index: i, hue: HUES[(i * 7 + 4) % HUES.length] })),
+  ...zahleninsel.map((p, i) => ({ ...p, galaxy: 'zahleninsel', index: i, hue: HUES[(i * 5 + 3) % HUES.length] })),
 ];
 
 export const PLANET_BY_ID = Object.fromEntries(PLANETS.map(p => [p.id, p]));
@@ -113,6 +169,8 @@ export function starsFor(correct, total = TASKS_PER_MISSION) {
 
 // Standard-Freischaltung für neue Kinder: jeweils der erste Planet der Start-Galaxien.
 export const DEFAULT_UNLOCKED = GALAXIES.filter(g => g.level === 'start').map(g => planetsOf(g.id)[0].id);
+/** Ist eine ganze Galaxie geschafft (jeder Planet mindestens Stufe 1)? */
+export const galaxyDone = (galaxyId, progress = {}) => planetsOf(galaxyId).every(p => (progress[p.id]?.bestStars || 0) >= 1);
 
 /**
  * Ist ein Planet offen?
@@ -128,6 +186,7 @@ export function isUnlocked(planetId, { mode, progress = {}, unlocked = [], autoA
   if (mode === 'public') return p.index === 0 || prevDone;
   if (unlocked.includes(planetId)) return true;
   if ((progress[planetId]?.attempts || 0) > 0) return true; // schon gespielt bleibt offen
+  if (p.index === 0) { const pg = prevGalaxy(p.galaxy); return !!(autoAdvance && pg && galaxyDone(pg.id, progress)); } // Weiterreise in die nächste Galaxie
   return autoAdvance && prevDone && isUnlocked(prev.id, { mode, progress, unlocked, autoAdvance });
 }
 
@@ -202,6 +261,10 @@ export const ERROR_TYPES = {
   zeitform: { label: 'Zeitformen', area: 'buchstaben', tip: 'Unregelmäßige Verben übergeneralisiert (gehte). Stammformen-Tabelle, mündliche Zeitreise-Spiele (heute/gestern).' },
   wortart: { label: 'Wortarten', area: 'buchstaben', tip: 'Proben nutzen: Artikelprobe (Nomen), ich-Probe (Verb), Wie-Frage (Adjektiv). Wortarten farbig markieren.' },
   kommasetzung: { label: 'Kommasetzung', area: 'buchstaben', tip: 'Bindewörter (weil, dass, wenn, obwohl, als, ob) als Komma-Signalwörter markieren; Haupt- und Nebensatz erkennen.' },
+  klammer: { label: 'Klammer missachtet', area: 'zahlen', tip: 'Klammern werden übersehen. Klammern farbig einkreisen und den Klammer-Inhalt zuerst ausrechnen und darüberschreiben lassen.' },
+  auslaut: { label: 'Auslaut (d/t, g/k am Wortende)', area: 'buchstaben', tip: 'Verlängerungsprobe üben: Hund → Hunde, Zug → Züge. Am Wortende hört man oft t/k, schreibt aber d/g.' },
+  umlaut: { label: 'e/ä bzw. eu/äu', area: 'buchstaben', tip: 'Ableitungsprobe: Gibt es ein verwandtes Wort mit a/au? Hand → Hände, Haus → Häuser.' },
+  lautposition: { label: 'Laut-Position nicht erkannt', area: 'buchstaben', tip: 'Phonologische Bewusstheit: Wörter gedehnt sprechen, Laute mit Fingern oder Plättchen abzählen, Anlaut/Inlaut/Auslaut markieren.' },
   sonstiges: { label: 'Sonstiger Fehler', area: 'beide', tip: 'Kein typisches Muster – im Gespräch nachfragen, wie das Kind gerechnet bzw. gelesen hat.' },
 };
 
