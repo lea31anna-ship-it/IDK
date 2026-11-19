@@ -1,0 +1,10 @@
+{
+  "name": "Sternenhüpfer",
+  "short_name": "Sternenhüpfer",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d2b",
+  "theme_color": "#0b0d2b",
+  "lang": "de",
+  "icons": [{ "src": "img/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

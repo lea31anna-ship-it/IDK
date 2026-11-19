@@ -1,0 +1,14 @@
+{
+  "name": "sternenhuepfer",
+  "version": "1.0.0",
+  "description": "Sternenhüpfer – Galaxie-Lern-App für Kinder mit Legasthenie und Dyskalkulie, inkl. Coach-Dashboard",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "private": true
+}
