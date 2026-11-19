@@ -11,7 +11,17 @@ export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 
   'negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung',
   'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma',
   'lernwoerter'];
-export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟'];
+// Reihenfolge ist Teil des Codes: NUR HINTEN ANHÄNGEN (max. 128)!
+export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟',
+  // Tiere
+  '🐻', '🐨', '🐰', '🐹', '🐭', '🐮', '🐷', '🐵', '🐔', '🦉', '🦅', '🦆', '🐢', '🐍', '🐊', '🦕', '🐳', '🐬', '🦈', '🐠', '🦀', '🐝', '🐞', '🦔',
+  '🦒', '🐘', '🦓', '🦘', '🦥', '🦦', '🐿️', '🦩', '🦜', '🐲', '🦝', '🐺', '🦌', '🐴', '🐑', '🐌', '🐛', '🦭', '🐻‍❄️', '🐡',
+  // Fantasie & Helden
+  '🦸', '🦹', '🧙', '🧚', '🧜', '🥷', '👑', '🐉', '👻', '🎃', '🤠', '🧞',
+  // Weltraum & Natur
+  '🪐', '🌙', '☀️', '🌈', '⚡', '🔥', '❄️', '🚀', '🛸', '☄️', '🌍', '💫', '🌻', '🌵', '🍀', '🌸',
+  // Hobbys & Lieblingssachen
+  '⚽', '🏀', '🎾', '🎸', '🎨', '🎮', '🧩', '🎈', '🍕', '🍓', '🍉', '🍩', '🧁', '🛹', '🚲', '🏰'];
 const B32 = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // ohne 0/O und 1/I/L-Verwechslung
 
 function toB32(n, len) { let s = ''; for (let i = 0; i < len; i++) { s = B32[Number(n & 31n)] + s; n >>= 5n; } return s; }
@@ -25,15 +35,17 @@ export const prettyName = n => n.charAt(0) + n.slice(1).toLowerCase();
 
 // v1 (13 Zeichen): [8 Prüfsumme][16 ID][5 Avatar][1 auto][32 Planeten]            = 62 Bit
 // v2 (19 Zeichen): [8 Prüfsumme][16 ID][5 Avatar][1 auto][64 Planeten]  + 1 Füllbit = 95 Bit
-const FMT = { 13: { mb: 32n, groups: [4, 4, 5] }, 19: { mb: 64n, groups: [4, 5, 5, 5] } };
+// v3 (20 Zeichen): wie v2, aber 7 Bit Avatar (bis 128 Avatare)
+const FMT = { 13: { mb: 32n, ab: 5n, groups: [4, 4, 5] }, 19: { mb: 64n, ab: 5n, groups: [4, 5, 5, 5] }, 20: { mb: 64n, ab: 7n, groups: [5, 5, 5, 5] } };
 const group = (c, gs) => { const out = []; let i = 0; for (const g of gs) { out.push(c.slice(i, i + g)); i += g; } return out.join('-'); };
 export function encodeKidCode({ name, id, avatar = 0, autoAdvance = true, unlocked = [] }) {
   const nm = cleanName(name);
   let mask = 0n, maxIdx = -1;
   CODE_ORDER.forEach((pid, i) => { if (unlocked.includes(pid)) { mask |= 1n << BigInt(i); maxIdx = i; } });
-  const len = maxIdx < 32 ? 13 : 19, { mb, groups } = FMT[len];
-  const body = (BigInt(id & 0xffff) << (mb + 6n)) | (BigInt(avatar & 31) << (mb + 1n)) | ((autoAdvance ? 1n : 0n) << mb) | mask;
-  const n = (check8(body, nm) << (mb + 22n)) | body;
+  const len = avatar >= 32 ? 20 : maxIdx < 32 ? 13 : 19, { mb, ab, groups } = FMT[len];
+  const top = mb + 1n + ab + 16n;
+  const body = (BigInt(id & 0xffff) << (mb + 1n + ab)) | (BigInt(avatar & 127) << (mb + 1n)) | ((autoAdvance ? 1n : 0n) << mb) | mask;
+  const n = (check8(body, nm) << top) | body;
   return `${nm}-${group(toB32(n, len), groups)}`;
 }
 export function decodeKidCode(str) {
@@ -42,13 +54,13 @@ export function decodeKidCode(str) {
   if (!m) return null;
   const raw = m[2].replace(/-/g, '');
   const f = FMT[raw.length]; if (!f) return null;
-  const { mb } = f;
+  const { mb, ab } = f, top = mb + 1n + ab + 16n;
   const n = fromB32(raw); if (n === null) return null;
-  const body = n & ((1n << (mb + 22n)) - 1n);
-  if ((n >> (mb + 22n)) !== check8(body, m[1])) return null;
+  const body = n & ((1n << top) - 1n);
+  if ((n >> top) !== check8(body, m[1])) return null;
   const mask = body & ((1n << mb) - 1n);
   return {
-    name: prettyName(m[1]), id: Number((body >> (mb + 6n)) & 0xffffn), avatar: AVATARS[Number((body >> (mb + 1n)) & 31n)] || AVATARS[0],
+    name: prettyName(m[1]), id: Number((body >> (mb + 1n + ab)) & 0xffffn), avatar: AVATARS[Number((body >> (mb + 1n)) & ((1n << ab) - 1n))] || AVATARS[0],
     autoAdvance: ((body >> mb) & 1n) === 1n, unlocked: CODE_ORDER.filter((_, i) => (mask >> BigInt(i)) & 1n),
     code: `${m[1]}-${group(raw, f.groups)}`,
   };
@@ -90,7 +102,7 @@ export const linkExtra = k => {
 };
 export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null });
 export function parseKidHash(hash) {
-  const m = /^#?k-([a-z]+)-([0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
+  const m = /^#?k-([a-z]+)-([0-9a-z]{20}|[0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
   const kid = decodeKidCode(`${m[1]}-${m[2]}`);
   if (!kid) return null;
@@ -112,7 +124,7 @@ export async function encodeReport(kid) {
     p: Object.fromEntries(Object.entries(kid.progress || {}).map(([k, p]) => [idx(k), [p.bestStars, p.attempts, p.correct, p.total, p.lastPlayed ? min(p.lastPlayed) : 0]])),
     s: (kid.sessions || []).slice(-80).map(s => [min(s.ts), idx(s.planetId), s.correct, s.total, s.moodBefore || 0, s.moodAfter || 0, s.tips || 0, s.durationSec || 0]),
     e: (kid.errors || []).slice(-120).map(e => [min(e.ts), idx(e.planetId), e.type, e.task, e.given, e.expected]),
-    t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
+    av: kid.look?.avatar || '', t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
   };
   let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = 'J';
   if (typeof CompressionStream !== 'undefined') { bytes = await pipe(bytes, new CompressionStream('deflate-raw')); z = 'Z'; }
@@ -130,7 +142,7 @@ export async function decodeReport(text) {
     id: o.id, name: o.n, code: o.c,
     progress: Object.fromEntries(Object.entries(o.p || {}).filter(([i]) => pid(i)).map(([i, a]) => [pid(i), { bestStars: a[0], attempts: a[1], correct: a[2], total: a[3], lastPlayed: a[4] ? iso(a[4]) : null }])),
     sessions: (o.s || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), correct: a[2], total: a[3], stars: a[3] ? (a[2] / a[3] >= 1 ? 3 : a[2] / a[3] >= .9 ? 2 : a[2] / a[3] >= .7 ? 1 : 0) : 0, moodBefore: a[4] || null, moodAfter: a[5] || null, tips: a[6], durationSec: a[7] })),
-    trophies: o.t || {}, stats: o.st || null,
+    trophies: o.t || {}, stats: o.st || null, avatar: AVATARS.includes(o.av) ? o.av : null,
     errors: (o.e || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), type: String(a[2]), task: String(a[3]).slice(0, 60), given: String(a[4]).slice(0, 40), expected: String(a[5]).slice(0, 40) })),
   };
 }

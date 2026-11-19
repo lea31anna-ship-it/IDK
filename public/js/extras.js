@@ -102,3 +102,24 @@ export function sound(kind) {
 
 export const ACTIVITY_NAMES = { lernwoerter: 'Lernwörter-Training' };
 export const activityName = id => PLANET_BY_ID[id]?.name || ACTIVITY_NAMES[id] || id;
+
+// ---------- Personalisierung ----------
+// Raumschiffe und Weltraum-Farben: einige gibt es erst mit Pokalen (need = Anzahl Pokale)
+export const SHIPS = [
+  { e: '🚀', name: 'Rakete', need: 0 }, { e: '🛸', name: 'Ufo', need: 0 }, { e: '🛰️', name: 'Satellit', need: 2 },
+  { e: '🎈', name: 'Ballon', need: 3 }, { e: '🐉', name: 'Drache', need: 5 }, { e: '🦄', name: 'Einhorn', need: 7 },
+  { e: '🐳', name: 'Weltraumwal', need: 9 }, { e: '☄️', name: 'Komet', need: 12 },
+];
+export const SPACES = [
+  { id: 'lila', name: 'Lila Nebel', need: 0, sw: ['#2b1a6e', '#0e3a6e'] }, { id: 'blau', name: 'Tiefsee-Blau', need: 0, sw: ['#0b3a78', '#062a4f'] },
+  { id: 'gruen', name: 'Polarlicht', need: 2, sw: ['#0d5c4a', '#1a3d6e'] }, { id: 'rosa', name: 'Zuckerwatte', need: 4, sw: ['#6b1d5c', '#2b1a6e'] },
+  { id: 'orange', name: 'Sonnenaufgang', need: 6, sw: ['#7a3412', '#4a1650'] }, { id: 'nacht', name: 'Stille Nacht', need: 8, sw: ['#14142a', '#0a0a14'] },
+];
+export const RANKS = [
+  { min: 0, name: 'Weltraum-Kadett', icon: '🌱' }, { min: 10, name: 'Raketen-Pilot', icon: '🚀' }, { min: 30, name: 'Sternen-Kapitän', icon: '⭐' },
+  { min: 60, name: 'Planeten-Kommandant', icon: '🪐' }, { min: 100, name: 'Galaxie-Admiral', icon: '🌌' }, { min: 160, name: 'Universums-Legende', icon: '👑' },
+];
+export function rankFor(stars) {
+  const i = RANKS.reduce((acc, r, idx) => (stars >= r.min ? idx : acc), 0);
+  return { ...RANKS[i], next: RANKS[i + 1] || null };
+}

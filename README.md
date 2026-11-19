@@ -34,6 +34,13 @@ Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
 
 **📅 Lern-Tage statt Streak:** Gezählt werden Lern-Tage pro Woche mit frei wählbarem Wochenziel. Eine Pause wird nie bestraft, was bei Lernangst wichtig ist. Dazu kommen eine **Tagesmission** (schwächster gespielter Planet oder nächster neuer Planet) und eine **Erinnerung** für Eltern als wiederkehrender Termin in Google- oder Outlook-Kalender. Web-Apps dürfen keine Push-Nachrichten schicken.
 
+**🎨 Mein Profil (Kinder):** Ein Tipp auf den eigenen Namen oder „Mehr → Mein Profil“ öffnet das Profil. Dort wählt das Kind:
+- **Avatar** aus 106 Emojis und einen **Spitznamen** (nur in der App, die Coachin sieht den echten Namen)
+- **Raumschiff** und **Weltraum-Farbe**; einige davon gibt es erst ab einer bestimmten Zahl an Pokalen
+- einen **Rang**, der mit den Sternen wächst (Weltraum-Kadett → … → Universums-Legende)
+
+Ein selbst gewählter Avatar kommt mit dem nächsten Bericht auch im Coach-Bereich an. Bei der Avatar-Auswahl im Coach-Bereich sind bereits vergebene Avatare markiert, und für jedes neue Kind wird ein freier vorgeschlagen.
+
 **🔐 Coach-Login auf der Startseite:** Mit Server führt der Knopf zum Passwort-Login. Als claude.ai-Web-App erfolgt die Anmeldung über das Claude-Konto, und nur die Besitzerin bzw. Bearbeiter*innen kommen hinein. Zusätzlich schützt ein **PIN** (4–6 Ziffern, gespeichert nur als PBKDF2-Hash), etwa wenn ein Kind das Tablet der Coachin benutzt. Nach 5 Fehlversuchen sperrt sich der Login für 5 Minuten (danach jeweils doppelt so lang). Bei vergessenem PIN hilft der Wiederherstellungs-Code, der beim Festlegen einmalig angezeigt wird.
 
 **Zahlen-Galaxie (Dyskalkulie), 18 Planeten**

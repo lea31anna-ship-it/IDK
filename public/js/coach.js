@@ -9,7 +9,14 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
 const S = { token: ls.get('sh_coach_token'), kids: [], settings: {}, view: 'overview', kid: null, tab: 'overview', range: 30, lite: null };
 // lite = serverlose Variante (Web-App ohne eigenen Server): { call(path, opts), kidLink(kid, msg), kidAppUrl }
-const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟'];
+import { AVATARS } from './codec.js';
+// Avatar-Auswahl: alle Avatare, bereits vergebene sind markiert (hilft bei vielen Kindern)
+function avatarPicker(current, exceptKidId = null) {
+  const used = new Map(S.kids.filter(k => k.id !== exceptKidId).map(k => [k.avatar, k.name]));
+  return `<div class="emoji-pick" role="listbox" aria-label="Avatar wählen">${AVATARS.map(a => `<button type="button" data-a="${a}" class="${a === current ? 'sel' : ''} ${used.has(a) ? 'used' : ''}" title="${used.has(a) ? 'schon vergeben an ' + esc(used.get(a)) : 'frei'}">${a}</button>`).join('')}</div>
+    <p class="muted" style="font-size:.8em;margin:4px 0 0">Blasse Avatare sind schon an andere Kinder vergeben (doppelt geht aber auch).</p>`;
+}
+const freeAvatar = () => { const used = new Set(S.kids.map(k => k.avatar)); return AVATARS.find(a => !used.has(a)) || AVATARS[0]; };
 const moodE = v => MOODS.find(m => m.v === v)?.e || '–';
 const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '–';
 const fmtDateTime = ts => ts ? new Date(ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
@@ -218,12 +225,12 @@ function renderOverview(main) {
 // ---------- Kind anlegen ----------
 function newKidDialog() {
   const d = document.createElement('dialog');
-  let av = AVATARS[0];
+  let av = freeAvatar();
   d.innerHTML = `<form method="dialog" id="nk">
     <h2 style="margin-top:0">Neues Kind</h2>
     <div class="field"><label for="nk-name">Vorname (oder Spitzname)</label><input id="nk-name" type="text" maxlength="40" required></div>
     <p class="muted" style="font-size:.85em;margin-top:-4px">Datenschutz-Tipp: Nur Vorname oder Spitzname – kein Nachname, kein Geburtsdatum.</p>
-    <div class="field"><label>Avatar</label><div class="emoji-pick">${AVATARS.map((a, i) => `<button type="button" data-a="${a}" class="${i ? '' : 'sel'}">${a}</button>`).join('')}</div></div>
+    <div class="field"><label>Avatar</label>${avatarPicker(av)}</div>
     <p class="err" id="nk-err"></p>
     <div class="row"><button class="btn primary" value="ok">Anlegen & Code erzeugen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
   host.appendChild(d); d.showModal();
@@ -597,7 +604,7 @@ function editKidDialog() {
   const d = document.createElement('dialog');
   d.innerHTML = `<form method="dialog"><h2 style="margin-top:0">Bearbeiten</h2>
     <div class="field"><label for="en">Name</label><input id="en" type="text" maxlength="40" value="${esc(k.name)}" required></div>
-    <div class="field"><label>Avatar</label><div class="emoji-pick">${AVATARS.map(a => `<button type="button" data-a="${a}" class="${a === av ? 'sel' : ''}">${a}</button>`).join('')}</div></div>
+    <div class="field"><label>Avatar</label>${avatarPicker(av, k.id)}</div>
     <div class="row"><button class="btn primary" value="ok">Speichern</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
   host.appendChild(d); d.showModal();
   d.querySelectorAll('.emoji-pick button').forEach(b => b.onclick = () => { av = b.dataset.a; d.querySelectorAll('.emoji-pick button').forEach(x => x.classList.toggle('sel', x === b)); });

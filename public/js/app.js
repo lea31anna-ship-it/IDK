@@ -1,7 +1,7 @@
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf } from './exercises.js';
-import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra } from './codec.js';
-import { TROPHIES, emptyStats, award, weekDays, dailyMission, calendarLinks, sound, today } from './extras.js';
+import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
+import { TROPHIES, emptyStats, award, weekDays, dailyMission, calendarLinks, sound, today, SHIPS, SPACES, rankFor } from './extras.js';
 import { cleanWord, syllablesOfCustom, parseWordInput, wordMission } from './words.js';
 import { GAMES, renderGame } from './games.js';
 import { pick } from './util.js';
@@ -127,6 +127,7 @@ function closeModal(cb) { $modal.innerHTML = ''; cb?.(); }
 // ---------- Startbildschirm ----------
 function renderStart() {
   state.mode = null;
+  document.body.dataset.space = (store.get('prof_public', {}).look || {}).space || 'lila';
   const i = state.info || {};
   $app.innerHTML = `
     <section class="start">
@@ -272,7 +273,7 @@ function renderMap(focusId = null) {
           <span class="pl-stars">${isOpen && pr ? [1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">★</span>`).join('') : ''}</span>
         </button>`;
       }).join('')}
-      <div class="rocket" id="rocket" aria-hidden="true">🚀</div>
+      <div class="rocket ${look().ship === '🚀' ? '' : 'norot'}" id="rocket" aria-hidden="true">${look().ship}</div>
     </div>
     ${navBar('map')}`;
 
@@ -389,7 +390,7 @@ function runMission(p, moodB) {
     $app.innerHTML = `
       <div class="mission-top">
         <button class="icon-btn" id="quit" aria-label="Mission abbrechen">✕</button>
-        <div class="fuel" aria-hidden="true"><div class="fuel-fill" style="width:${pct}%"></div><span class="fuel-rocket" style="left:${pct}%">🚀</span></div>
+        <div class="fuel" aria-hidden="true"><div class="fuel-fill" style="width:${pct}%"></div><span class="fuel-rocket ${look().ship === '🚀' ? '' : 'norot'}" style="left:${pct}%">${look().ship}</span></div>
         <span class="fuel-count">${m.i + 1}/${tasks.length}</span>
       </div>
       <section class="panel task">
@@ -658,11 +659,11 @@ async function openCoach() {
 // ---------- Profil: Statistik, Pokale, eigene Wörter (pro Kind bzw. Gerät) ----------
 const profileKey = () => (state.mode === 'kid' ? 'prof_srv_' + (state.kid?.code || '') : 'prof_public');
 function getProfile() {
-  if (state.mode === 'kid' && state.offline) { const k = offlineKids()[state.kid.id] || {}; return { stats: k.stats, trophies: k.trophies, ownWords: k.ownWords }; }
+  if (state.mode === 'kid' && state.offline) { const k = offlineKids()[state.kid.id] || {}; return { stats: k.stats, trophies: k.trophies, ownWords: k.ownWords, look: k.look }; }
   return store.get(profileKey(), {});
 }
 function saveProfile(p) {
-  if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.stats = p.stats; k.trophies = p.trophies; k.ownWords = p.ownWords; });
+  if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.stats = p.stats; k.trophies = p.trophies; k.ownWords = p.ownWords; k.look = p.look; });
   else store.set(profileKey(), p);
 }
 function earn(change) {
@@ -700,20 +701,27 @@ function showNewTrophies(list) {
 }
 
 // ---------- Kopfzeile & Menü-Leiste ----------
+// Aussehen des Kindes (Avatar, Spitzname, Raumschiff, Weltraum-Farbe)
+function look() {
+  const kid = state.mode === 'kid' ? state.kid : null, l = getProfile().look || {};
+  const ship = SHIPS.find(x => x.e === l.ship) || SHIPS[0];
+  return { avatar: l.avatar || kid?.avatar || '🧑‍🚀', name: l.nick || kid?.name || 'Weltraum-Entdecker', ship: ship.e, space: l.space || 'lila' };
+}
+function applyLook() { document.body.dataset.space = look().space; }
+const totalStars = () => Object.values(state.progress).reduce((a, p) => a + (p.bestStars || 0), 0);
 function topbar() {
-  const kid = state.mode === 'kid' ? state.kid : null;
-  const totalStars = Object.values(state.progress).reduce((a, p) => a + (p.bestStars || 0), 0);
-  const trophies = Object.keys(getProfile().trophies || {}).length;
+  const trophies = Object.keys(getProfile().trophies || {}).length, L = look(), rank = rankFor(totalStars());
+  applyLook();
   return `<header class="topbar">
       <button class="icon-btn" id="home" aria-label="Zum Start">🏠</button>
-      <div class="who">
-        <div class="avatar" aria-hidden="true">${kid ? esc(kid.avatar) : '🧑‍🚀'}</div>
+      <button class="who" id="me" aria-label="Mein Profil gestalten">
+        <div class="avatar" aria-hidden="true">${esc(L.avatar)}</div>
         <div style="min-width:0">
-          <div class="who-name">${kid ? esc(kid.name) : 'Weltraum-Entdecker'}</div>
-          <div class="who-sub">${kid ? (kid.coachName ? 'Mission mit ' + esc(kid.coachName) : 'Coach-Mission') : 'Freie Version'}</div>
+          <div class="who-name">${esc(L.name)}</div>
+          <div class="who-sub">${rank.icon} ${esc(rank.name)}</div>
         </div>
-      </div>
-      <span class="star-count" aria-label="${totalStars} Sterne, ${trophies} Pokale">⭐ ${totalStars}${trophies ? ` · 🏆 ${trophies}` : ''}</span>
+      </button>
+      <span class="star-count" aria-label="${totalStars()} Sterne, ${trophies} Pokale">⭐ ${totalStars()}${trophies ? ` · 🏆 ${trophies}` : ''}</span>
       <button class="icon-btn" id="settings" aria-label="Einstellungen">⚙️</button>
     </header>`;
 }
@@ -727,6 +735,7 @@ function navBar(active) {
 function bindChrome() {
   document.getElementById('home')?.addEventListener('click', () => { if (state.mode === 'kid') askLogout(); else renderStart(); });
   document.getElementById('settings')?.addEventListener('click', openSettings);
+  document.getElementById('me')?.addEventListener('click', renderProfile);
   $app.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => { window.speechSynthesis?.cancel(); SCREENS[b.dataset.nav](); scrollTo(0, 0); });
   $app.querySelectorAll('[data-say]').forEach(b => b.addEventListener('click', () => speak(b.dataset.say, .8)));
 }
@@ -859,6 +868,43 @@ function renderTrophies() {
   });
 }
 
+// ---------- Mein Profil (Personalisierung) ----------
+function renderProfile() {
+  const prof = getProfile(), L = look(), have = Object.keys(prof.trophies || {}).length, stars = totalStars(), rank = rankFor(stars);
+  const kid = state.mode === 'kid' ? state.kid : null;
+  const save = patch => { const p = getProfile(); p.look = { ...(p.look || {}), ...patch }; saveProfile(p); };
+  $app.innerHTML = `${topbar()}
+    <section class="screen profile">
+      <h2 class="screen-title">🎨 Mein Profil</h2>
+      <div class="panel me-card">
+        <div class="me-avatar">${esc(L.avatar)}<span class="me-ship ${L.ship === '🚀' ? '' : 'norot'}">${L.ship}</span></div>
+        <div class="me-info"><div class="me-name">${esc(L.name)}</div>
+          <div class="me-rank">${rank.icon} ${esc(rank.name)}</div>
+          ${rank.next ? `<div class="reward-bar" aria-hidden="true"><span style="width:${Math.min(100, 100 * (stars - rank.min) / (rank.next.min - rank.min))}%"></span></div><small class="who-sub">Noch ${rank.next.min - stars} ⭐ bis ${rank.next.icon} ${esc(rank.next.name)}</small>` : '<small class="who-sub">Höchster Rang erreicht! 👑</small>'}
+        </div>
+      </div>
+      <div class="panel"><h3>Dein Spitzname</h3>
+        <form id="nickf" class="nick-row"><input id="nick" class="word-input" maxlength="16" value="${esc(prof.look?.nick || '')}" placeholder="${esc(kid?.name || 'Dein Name')}" autocomplete="off">
+        <button class="btn primary">Speichern</button></form>
+        <p class="who-sub">${kid ? 'Deine Coachin sieht weiterhin deinen richtigen Namen.' : 'Wird nur auf diesem Gerät gespeichert.'}</p></div>
+      <div class="panel"><h3>Dein Avatar</h3>
+        <div class="pick-grid avatars">${AVATARS.map(a => `<button class="pick ${a === L.avatar ? 'sel' : ''}" data-av="${a}" aria-label="Avatar ${a}" aria-pressed="${a === L.avatar}">${a}</button>`).join('')}</div>
+        ${kid && prof.look?.avatar && prof.look.avatar !== kid.avatar ? `<button class="btn block" id="reset-av" style="margin-top:10px">${esc(kid.avatar)} Avatar von deiner Coachin nehmen</button>` : ''}</div>
+      <div class="panel"><h3>Dein Raumschiff</h3>
+        <div class="pick-grid ships">${SHIPS.map(x => { const locked = have < x.need; return `<button class="pick ship ${x.e === L.ship ? 'sel' : ''} ${locked ? 'locked' : ''}" data-ship="${x.e}" ${locked ? `data-need="${x.need}"` : ''} aria-label="${esc(x.name)}${locked ? `, ab ${x.need} Pokalen` : ''}"><span>${locked ? '🔒' : x.e}</span><small>${locked ? `ab ${x.need} 🏆` : esc(x.name)}</small></button>`; }).join('')}</div></div>
+      <div class="panel"><h3>Deine Weltraum-Farbe</h3>
+        <div class="pick-grid spaces">${SPACES.map(x => { const locked = have < x.need; return `<button class="pick space ${x.id === L.space ? 'sel' : ''} ${locked ? 'locked' : ''}" data-space="${x.id}" ${locked ? `data-need="${x.need}"` : ''} style="--a:${x.sw[0]};--b:${x.sw[1]}"><span class="sw">${locked ? '🔒' : ''}</span><small>${locked ? `ab ${x.need} 🏆` : esc(x.name)}</small></button>`; }).join('')}</div>
+        <p class="who-sub">Sammle Pokale, um neue Raumschiffe und Farben freizuschalten! Du hast ${have} 🏆.</p></div>
+    </section>${navBar('more')}`;
+  bindChrome();
+  $app.querySelector('#nickf').onsubmit = e => { e.preventDefault(); save({ nick: $app.querySelector('#nick').value.trim().slice(0, 16) }); toast('Gespeichert ✓'); renderProfile(); };
+  $app.querySelectorAll('[data-av]').forEach(b => b.onclick = () => { save({ avatar: b.dataset.av }); renderProfile(); });
+  document.getElementById('reset-av')?.addEventListener('click', () => { save({ avatar: '' }); renderProfile(); });
+  const lockedMsg = b => { toast(`🔒 Das gibt es ab ${b.dataset.need} Pokalen. Du schaffst das!`); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); };
+  $app.querySelectorAll('[data-ship]').forEach(b => b.onclick = () => { if (b.dataset.need) return lockedMsg(b); save({ ship: b.dataset.ship }); renderProfile(); });
+  $app.querySelectorAll('[data-space]').forEach(b => b.onclick = () => { if (b.dataset.need) return lockedMsg(b); save({ space: b.dataset.space }); renderProfile(); });
+}
+
 // ---------- Mehr ----------
 const appUrl = () => document.querySelector('meta[name="sh-kid-app"]')?.content || location.origin + location.pathname;
 function renderMore() {
@@ -867,6 +913,7 @@ function renderMore() {
     <section class="screen">
       <h2 class="screen-title">☰ Mehr</h2>
       <div class="panel more-list">
+        <button class="more-item" id="m-me"><span class="mi">🎨</span><span>Mein Profil<small>Avatar, Spitzname, Raumschiff & Farben</small></span></button>
         <button class="more-item" id="m-settings"><span class="mi">⚙️</span><span>Schrift, Farben & Töne<small>Lesefolie, Silbenfarben, Vorlesen</small></span></button>
         <button class="more-item" id="m-remind"><span class="mi">⏰</span><span>Erinnerung einrichten<small>Für Eltern: Lernzeit im Handy-Kalender</small></span></button>
         <button class="more-item" id="m-goal"><span class="mi">🎯</span><span>Wochenziel<small>${goal} Lern-Tage pro Woche</small></span></button>
@@ -877,6 +924,7 @@ function renderMore() {
     </section>${navBar('more')}`;
   bindChrome();
   document.getElementById('m-settings').onclick = openSettings;
+  document.getElementById('m-me').onclick = renderProfile;
   document.getElementById('m-remind').onclick = openReminder;
   document.getElementById('m-report')?.addEventListener('click', showReport);
   document.getElementById('m-home').onclick = () => { if (state.mode === 'kid') askLogout(); else renderStart(); };

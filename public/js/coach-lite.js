@@ -113,6 +113,7 @@ async function importReport(text) {
   }
   k.trophies = { ...(k.trophies || {}), ...(r.trophies || {}) };
   if (r.stats) k.stats = r.stats;
+  if (r.avatar && r.avatar !== k.avatar) { k.avatar = r.avatar; recode(k); } // vom Kind selbst gewählter Avatar
   const last = k.sessions.at(-1)?.ts;
   if (last && (!k.lastActive || last > k.lastActive)) k.lastActive = last;
   await save(k);

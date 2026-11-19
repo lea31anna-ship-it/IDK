@@ -52,3 +52,12 @@ test('Pokale werden vergeben', () => {
   assert.equal(weekDays(prof.stats.days).filter(d => d.done).length, 1);
   assert.ok(TROPHIES.length >= 15);
 });
+
+test('Ränge und viele Avatare', async () => {
+  const { rankFor, SHIPS, SPACES } = await import('../public/js/extras.js');
+  const { AVATARS, encodeKidCode, decodeKidCode } = await import('../public/js/codec.js');
+  assert.equal(rankFor(0).name, 'Weltraum-Kadett'); assert.equal(rankFor(35).name, 'Sternen-Kapitän'); assert.equal(rankFor(999).next, null);
+  assert.ok(AVATARS.length >= 90 && AVATARS.length <= 128); assert.equal(new Set(AVATARS).size, AVATARS.length);
+  for (let i = 0; i < AVATARS.length; i++) assert.equal(decodeKidCode(encodeKidCode({ name: 'Tim', id: i, avatar: i, unlocked: ['mengen'] })).avatar, AVATARS[i]);
+  assert.ok(SHIPS[0].need === 0 && SPACES[0].need === 0);
+});
