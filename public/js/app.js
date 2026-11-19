@@ -1,4 +1,4 @@
-import { PLACEMENT, evaluatePlacement, PLACEMENT_STATUS, PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, nextGalaxy, galaxyDone } from './curriculum.js';
+import { PLACEMENT, evaluatePlacement, PLACEMENT_STATUS, PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, galaxyDone } from './curriculum.js';
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf, stationQuiz } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
@@ -257,9 +257,9 @@ async function showReport() {
 const unlockCtx = () => ({ mode: state.mode, progress: state.progress, unlocked: state.unlocked, autoAdvance: state.autoAdvance });
 const open = id => isUnlocked(id, unlockCtx());
 
-// ---------- Galaxie-Karte ----------
-const SPACING = 170;
-// Karte: Planeten und dazwischen Raumstationen
+// ---------- Galaxie-Karte: ein durchgehender Pfad pro Fach (Galaxie für Galaxie nach unten) ----------
+const SPACING = 150, HEAD_H = 300, SECTION_GAP = 60;
+// Abschnitt einer Galaxie: Planeten und dazwischen Raumstationen
 function mapNodes(gid) {
   const list = planetsOf(gid), sts = stationsOf(gid), nodes = [];
   list.forEach((p, i) => { nodes.push({ kind: 'planet', id: p.id, p }); for (const st of sts.filter(x => x.after === i)) nodes.push({ kind: 'station', id: st.id, st }); });
@@ -268,35 +268,62 @@ function mapNodes(gid) {
 const STATIONS = Object.fromEntries(GALAXIES.flatMap(g => stationsOf(g.id)).map(st => [st.id, st]));
 const galaxyOfNode = id => PLANET_BY_ID[id]?.galaxy || STATIONS[id]?.galaxy;
 const stationBest = id => getProfile().stations?.[id] || null;
-function planetPos(i) { return { x: 50 + 32 * Math.sin(i * 1.15), y: 90 + i * SPACING }; }
+const levelOfGalaxy = gid => GALAXIES.find(x => x.id === gid)?.level;
+const galaxyHue = i => [200, 280, 330, 25, 150, 255, 185, 45, 300][i % 9];
+// Gesamte Reiseroute eines Fachs vorberechnen (Positionen für Planeten, Stationen und Überschriften)
+let LAYOUT = null;
+function chainLayout(gid) {
+  const chain = chainOf(gid), pos = {}, sections = [];
+  let y = 10;
+  chain.forEach((g, si) => {
+    const headY = y; y += HEAD_H;
+    const nodes = mapNodes(g.id).map((n, i) => { const p = { x: 50 + 30 * Math.sin(i * 1.15), y: y + i * SPACING }; pos[n.id] = p; return { ...n, ...p }; });
+    y += (nodes.length - 1) * SPACING + 60 + SECTION_GAP;
+    sections.push({ g, si, headY, nodes, hue: galaxyHue(si) });
+  });
+  return { chain, sections, pos, height: y + 40 };
+}
+const rocketKey = level => 'rocket_' + level + (state.mode === 'kid' ? '_' + state.kid.code : '');
+const galaxyLocked = g => !open(planetsOf(g.id)[0].id);
 
 function renderMap(focusId = null) {
   const g = GALAXIES.find(x => x.id === state.galaxy) || GALAXIES[0];
-  const list = planetsOf(g.id), nodes = mapNodes(g.id);
+  const L = LAYOUT = chainLayout(g.id);
   const kid = state.mode === 'kid' ? state.kid : null;
-  const nextId = list.find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id;
-  const nextG = nextGalaxy(g.id), gDone = galaxyDone(g.id, state.progress);
-  const height = 90 + (nodes.length - 1 + (nextG ? 1 : 0)) * SPACING + 120;
-  const chain = chainOf(g.id);
-
-  let pathD = '';
-  nodes.forEach((n, i) => { const { x, y } = planetPos(i); pathD += (i ? ' L ' : 'M ') + `${x} ${y}`; });
+  const allPlanets = L.chain.flatMap(x => planetsOf(x.id));
+  const nextId = allPlanets.find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id;
+  const calm = state.settings.calm;
 
   const dm = dailyMission(state.progress, open, g.id);
   const doneToday = (getProfile().stats?.days || []).includes(today());
+  const paths = L.sections.map(s => s.nodes.map((n, i) => (i ? ' L ' : 'M ') + `${n.x} ${n.y}`).join('')).join(' ');
+  const secProg = s => { const ps = planetsOf(s.g.id); const d = ps.filter(p => (state.progress[p.id]?.bestStars || 0) >= 1).length; return { d, n: ps.length }; };
+
   $app.innerHTML = `
     ${topbar()}
     ${dm ? `<button class="daily" id="daily"><span class="daily-i">🎯</span><span class="daily-t"><b>Tagesmission:</b> ${esc(dm.planet.name)}<small>${doneToday ? '✅ Heute schon geübt – super!' : esc(dm.why)}</small></span><span class="daily-go">Los ➜</span></button>` : ''}
     <nav class="subjects" role="tablist" aria-label="Fach">
       ${LEVELS.map(l => `<button class="subject" role="tab" data-l="${l.id}" aria-selected="${l.id === g.level}"><span class="sj-i">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
     </nav>
-    <nav class="chain" aria-label="Themen">${chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓ ' : ''}${x.icon} ${esc(x.name)}</button>`).join('')}</nav>
+    <nav class="chain" aria-label="Galaxien – zum Springen antippen">${L.chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓ ' : ''}${x.icon} ${esc(x.name)}</button>`).join('')}</nav>
     ${getProfile().placement?.[g.level] ? '' : `<button class="placement-cta" id="placement"><span>🧭</span><span><b>Neu hier? Mach den Einstufungstest ${g.level === 'mathe' ? 'Mathe' : 'Deutsch'}</b><small>Ein kurzes Quiz – danach weißt du, wo du starten kannst.</small></span></button>`}
-    <div class="topic-head"><b>${g.icon} ${esc(g.name)}</b><span>${esc(g.grade)} · ${esc(g.desc)}</span></div>
-    <div class="map" id="map" style="height:${height}px">
-      <svg class="path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}"/></svg>
-      ${nodes.map((node, i) => {
-        const { x, y } = planetPos(i);
+    <div class="gx-sticky" id="gx-sticky" aria-live="polite"></div>
+    <div class="map ${calm ? 'calm' : ''}" id="map" style="height:${L.height}px">
+      <svg class="path" viewBox="0 0 100 ${L.height}" preserveAspectRatio="none" aria-hidden="true"><path d="${paths}"/></svg>
+      ${L.sections.map(s => {
+        const { d, n } = secProg(s), locked = galaxyLocked(s.g), done = d === n, prev = L.chain[s.si - 1];
+        return `<section class="gx-head ${locked ? 'locked' : ''} ${done ? 'done' : ''}" data-g="${s.g.id}" style="top:${s.headY}px;--h:${s.hue}" aria-label="Galaxie ${s.si + 1}: ${esc(s.g.name)}">
+          <span class="gx-stars" aria-hidden="true">${'<i></i>'.repeat(7)}</span>
+          <span class="gx-num">Galaxie ${s.si + 1} von ${L.chain.length}</span>
+          <span class="gx-icon" aria-hidden="true">${s.g.icon}</span>
+          <h2>${esc(s.g.name)}</h2>
+          <p>${esc(s.g.grade)} · ${esc(s.g.desc)}</p>
+          <span class="gx-bar"><span style="width:${Math.round(100 * d / n)}%"></span></span>
+          <small>${done ? '🏆 Galaxie geschafft!' : locked && prev ? `🔒 Schaffe zuerst „${esc(prev.name)}“` : `${d} von ${n} Planeten geschafft`}</small>
+        </section>`;
+      }).join('')}
+      ${L.sections.flatMap(s => s.nodes).map(node => {
+        const { x, y } = node;
         if (node.kind === 'station') {
           const st = node.st, ok = stationOpen(st, state.progress), best = stationBest(st.id);
           return `<button class="pl station ${ok ? '' : 'locked'} ${st.final ? 'final' : ''}" data-st="${st.id}" style="left:${x}%;top:${y}px" aria-label="${esc(st.name)}: ${ok ? 'Quiz mit 3 Leben' : 'verschlossen'}">
@@ -304,51 +331,89 @@ function renderMap(focusId = null) {
             <span class="pl-name">${esc(st.name)}</span>
             <span class="pl-stars">${best?.best ? '❤️'.repeat(best.best) : ok ? '<span class="st-new">Quiz!</span>' : ''}</span></button>`;
         }
-        const p = node.p;
-        const pr = state.progress[p.id];
-        const ls = levelStars(pr);
-        const isOpen = open(p.id);
-        const stars = pr?.bestStars || 0;
+        const p = node.p, pr = state.progress[p.id], ls = levelStars(pr), isOpen = open(p.id), stars = pr?.bestStars || 0;
         const flagged = kid && state.unlocked.includes(p.id) && !DEFAULT_UNLOCKED.includes(p.id) && !stars;
         return `<button class="pl ${isOpen ? '' : 'locked'} ${p.id === nextId ? 'next' : ''}" data-id="${p.id}" style="left:${x}%;top:${y}px"
             aria-label="${esc(p.name)}: ${isOpen ? (stars ? stars + ' Sterne' : 'offen') : 'verschlossen'}">
-          <span class="orb ${i % 3 === 1 ? 'ring' : ''} ${p.boss ? 'boss' : ''}" style="--h:${p.hue}">${isOpen ? esc(p.label) : '<span class="lock">🔒</span>'}${flagged ? '<span class="flag" title="Von deiner Coachin freigeschaltet">🚩</span>' : ''}</span>
+          <span class="orb ${p.index % 3 === 1 ? 'ring' : ''} ${p.boss ? 'boss' : ''}" style="--h:${p.hue}">${isOpen ? esc(p.label) : '<span class="lock">🔒</span>'}${flagged ? '<span class="flag" title="Von deiner Coachin freigeschaltet">🚩</span>' : ''}</span>
           <span class="pl-name">${esc(p.name)}</span>
-          <span class="pl-medals">${isOpen && pr ? PLANET_LEVELS.map(L => `<span class="${ls[L.n] >= 1 ? '' : 'off'}" title="Stufe ${L.n}">${L.medal}</span>`).join('') : ''}</span>
+          <span class="pl-medals">${isOpen && pr ? PLANET_LEVELS.map(Lv => `<span class="${ls[Lv.n] >= 1 ? '' : 'off'}" title="Stufe ${Lv.n}">${Lv.medal}</span>`).join('') : ''}</span>
         </button>`;
       }).join('')}
-      ${nextG ? (() => { const { x, y } = planetPos(nodes.length); return `<button class="pl next-galaxy ${gDone ? 'ready' : ''}" id="next-galaxy" data-g="${nextG.id}" style="left:${x}%;top:${y}px">
-        <span class="ng-orb">${nextG.icon}</span><span class="pl-name">${gDone ? 'Galaxie geschafft! Weiter:' : 'Nächste Galaxie:'}<br>${esc(nextG.name)}</span></button>`; })() : ''}
+      <div class="gx-end" style="top:${L.height - 70}px">🌌 Ende der Reise – du bist ein echter Sternen-Profi!</div>
       <div class="rocket ${look().ship === '🚀' ? '' : 'norot'}" id="rocket" aria-hidden="true">${look().ship}</div>
     </div>
     ${navBar('map')}`;
 
   bindChrome();
+  const stickyEl = document.getElementById('gx-sticky');
+  const headEls = [...$app.querySelectorAll('.gx-head')];
+  const scrollToGalaxy = (gid, smooth = true) => {
+    const el = headEls.find(h => h.dataset.g === gid); if (!el) return;
+    const top = el.getBoundingClientRect().top + scrollY - (document.querySelector('.topbar')?.offsetHeight || 60) - 24;
+    window.scrollTo({ top, behavior: smooth && !calm ? 'smooth' : 'auto' });
+  };
   document.getElementById('placement')?.addEventListener('click', () => startPlacement(g.level));
   document.getElementById('daily')?.addEventListener('click', () => {
-    if (dm.planet.galaxy !== g.id) { state.galaxy = dm.planet.galaxy; store.set('galaxy', state.galaxy); renderMap(dm.planet.id); }
+    if (levelOfGalaxy(dm.planet.galaxy) !== g.level) { state.galaxy = dm.planet.galaxy; store.set('galaxy', state.galaxy); renderMap(dm.planet.id); }
     else focusPlanet(dm.planet.id);
   });
-  $app.querySelectorAll('.tab, .chain-step').forEach(b => b.onclick = () => { state.galaxy = b.dataset.g; store.set('galaxy', state.galaxy); renderMap(); scrollTo(0, 0); });
-  document.getElementById('next-galaxy')?.addEventListener('click', () => {
-    const first = planetsOf(nextG.id)[0];
-    if (!open(first.id)) { toast(`🔒 Schaffe zuerst alle Planeten dieser Galaxie – dann geht die Reise weiter!`); return; }
-    if (gDone) confetti(20);
-    state.galaxy = nextG.id; store.set('galaxy', state.galaxy); renderMap(first.id); scrollTo(0, 0);
+  $app.querySelectorAll('.chain-step').forEach(b => b.onclick = () => scrollToGalaxy(b.dataset.g));
+  headEls.forEach(h => h.onclick = () => {
+    if (h.classList.contains('locked')) { h.classList.remove('wiggle'); void h.offsetWidth; h.classList.add('wiggle'); toast('🔒 Schaffe zuerst alle Planeten der Galaxie davor – dann geht die Reise hier weiter!'); }
   });
   $app.querySelectorAll('.subject').forEach(b => b.onclick = () => {
-    store.set('galaxy_' + g.level, g.id); // pro Fach merken, wo man zuletzt war
+    if (b.dataset.l === g.level) return;
+    store.set('galaxy_' + g.level, state.galaxy); // pro Fach merken, wo man zuletzt war
     const same = GALAXIES.filter(x => x.level === b.dataset.l), last = store.get('galaxy_' + b.dataset.l, null);
-    state.galaxy = (same.find(x => x.id === last) || same[0]).id; store.set('galaxy', state.galaxy); renderMap(); scrollTo(0, 0);
+    state.galaxy = (same.find(x => x.id === last) || same[0]).id; store.set('galaxy', state.galaxy); scrollTo(0, 0); renderMap();
   });
-  document.querySelector('.chain-step.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 
-  // Rakete parken
-  const rocketAt = store.get('rocket_' + g.id + (kid ? '_' + kid.code : ''), null);
-  const startId = (rocketAt && ((PLANET_BY_ID[rocketAt] && open(rocketAt)) || (STATIONS[rocketAt] && galaxyOfNode(rocketAt) === g.id))) ? rocketAt : (nextId || list[0].id);
+  // Themen-Leiste horizontal mitführen (ohne scrollIntoView – das würde das Scrollen der Seite unterbrechen)
+  const centerChainStep = () => { const nav = $app.querySelector('.chain'), b = nav?.querySelector('.chain-step.cur'); if (b) nav.scrollTo({ left: b.offsetLeft - nav.clientWidth / 2 + b.offsetWidth / 2 }); };
+
+  // Überschriften fliegen beim Hineinscrollen ein
+  if ('IntersectionObserver' in window && !calm) {
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.35 });
+    headEls.forEach(h => io.observe(h));
+  } else headEls.forEach(h => h.classList.add('in'));
+
+  // Mitlaufende Galaxie-Leiste oben (wie ein Kapitel-Banner): zeigt, in welcher Galaxie man gerade ist
+  let curG = null;
+  const onScroll = () => {
+    if (!document.body.contains(stickyEl)) { removeEventListener('scroll', window.__mapScroll); return; }
+    const tb = document.querySelector('.topbar')?.offsetHeight || 60, line = tb + 90;
+    let cur = headEls[0];
+    for (const h of headEls) if (h.getBoundingClientRect().top < line) cur = h;
+    const passed = cur.getBoundingClientRect().bottom < tb + 10;
+    stickyEl.style.top = tb + 'px';
+    stickyEl.classList.toggle('show', passed);
+    if (cur.dataset.g === curG) return;
+    const first = curG === null; curG = cur.dataset.g;
+    const s = L.sections.find(x => x.g.id === curG), { d, n } = secProg(s);
+    stickyEl.style.setProperty('--h', s.hue);
+    stickyEl.innerHTML = `<span class="gs-icon">${s.g.icon}</span><span class="gs-t"><small>Galaxie ${s.si + 1} von ${L.chain.length}</small><b>${esc(s.g.name)}</b></span><span class="gs-p">${d}/${n} 🪐</span>`;
+    if (!first && !calm) { stickyEl.classList.remove('swap'); void stickyEl.offsetWidth; stickyEl.classList.add('swap'); }
+    $app.querySelectorAll('.chain-step').forEach(b => b.classList.toggle('cur', b.dataset.g === curG));
+    centerChainStep();
+    if (state.galaxy !== curG) { state.galaxy = curG; store.set('galaxy', curG); }
+  };
+  let ticking = false;
+  if (window.__mapScroll) removeEventListener('scroll', window.__mapScroll);
+  window.__mapScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(() => { ticking = false; onScroll(); }); } };
+  addEventListener('scroll', window.__mapScroll, { passive: true });
+
+  // Rakete parken (eine Rakete pro Fach)
+  const rocketAt = store.get(rocketKey(g.level), null);
+  const valid = id => id && L.pos[id] && (PLANET_BY_ID[id] ? open(id) : stationOpen(STATIONS[id], state.progress));
+  const inGalaxy = id => galaxyOfNode(id) === g.id;
+  // Startpunkt: gemerkte Position – außer man kommt gezielt in eine andere Galaxie (z. B. aus der Einstufung)
+  const startId = valid(rocketAt) && inGalaxy(rocketAt) ? rocketAt
+    : (planetsOf(g.id).find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id || (valid(rocketAt) ? rocketAt : null) || nextId || allPlanets[0].id);
   placeRocket(startId, false);
   const startEl = $app.querySelector(`.pl[data-id="${startId}"], .pl[data-st="${startId}"]`);
-  if (startEl) setTimeout(() => { if (startEl.getBoundingClientRect().bottom > innerHeight - 90) startEl.scrollIntoView({ block: 'center', behavior: state.settings.calm ? 'auto' : 'smooth' }); }, 50); // nur scrollen, wenn die Rakete nicht sichtbar ist
+  if (!focusId && startEl) setTimeout(() => { const r = startEl.getBoundingClientRect(); if (r.bottom > innerHeight - 90 || r.top < 0) startEl.scrollIntoView({ block: 'center', behavior: 'auto' }); onScroll(); }, 30);
+  else onScroll();
 
   $app.querySelectorAll('.pl[data-st]').forEach(el => el.onclick = () => {
     const st = STATIONS[el.dataset.st];
@@ -358,8 +423,8 @@ function renderMap(focusId = null) {
       return;
     }
     const moved = placeRocket(st.id, true);
-    store.set('rocket_' + g.id + (kid ? '_' + kid.code : ''), st.id);
-    setTimeout(() => showStationSheet(st), moved && !state.settings.calm ? 950 : 0);
+    store.set(rocketKey(g.level), st.id);
+    setTimeout(() => showStationSheet(st), moved && !calm ? 950 : 0);
   });
   $app.querySelectorAll('.pl[data-id]').forEach(el => el.onclick = () => {
     const p = PLANET_BY_ID[el.dataset.id];
@@ -369,8 +434,9 @@ function renderMap(focusId = null) {
       return;
     }
     const moved = placeRocket(p.id, true);
-    store.set('rocket_' + g.id + (kid ? '_' + kid.code : ''), p.id);
-    setTimeout(() => showPlanetSheet(p), moved && !state.settings.calm ? 950 : 0);
+    store.set(rocketKey(g.level), p.id);
+    if (state.galaxy !== p.galaxy) { state.galaxy = p.galaxy; store.set('galaxy', p.galaxy); }
+    setTimeout(() => showPlanetSheet(p), moved && !calm ? 950 : 0);
   });
 
   if (kid && kid.messages?.length) setTimeout(showRadio, 600);
@@ -381,17 +447,16 @@ function focusPlanet(id) {
   if (!p || !el) return;
   el.scrollIntoView({ block: 'center', behavior: state.settings.calm ? 'auto' : 'smooth' });
   const moved = placeRocket(id, true);
-  store.set('rocket_' + p.galaxy + (state.mode === 'kid' ? '_' + state.kid.code : ''), id);
+  store.set(rocketKey(levelOfGalaxy(p.galaxy)), id);
   setTimeout(() => showPlanetSheet(p), moved && !state.settings.calm ? 950 : 100);
 }
 function placeRocket(id, animate) {
   const r = document.getElementById('rocket');
-  const gal = galaxyOfNode(id); if (!r || !gal) return false;
-  const idx = mapNodes(gal).findIndex(n => n.id === id); if (idx < 0) return false;
-  const { x, y } = planetPos(idx);
+  const pos = LAYOUT?.pos[id]; if (!r || !pos) return false;
+  const { x, y } = pos;
   const oldTop = parseFloat(r.style.top) || 0;
   const target = { left: `calc(${x}% - 48px)`, top: `${y - 52}px` };
-  if (r.style.top === target.top) return false;
+  if (r.style.top === target.top && r.style.left === target.left) return false;
   r.style.setProperty('--rot', y - 52 < oldTop ? '-45deg' : '135deg');
   if (!animate) r.style.transition = 'none';
   r.style.left = target.left; r.style.top = target.top;
@@ -819,9 +884,9 @@ function renderResult(p, correct, total, stars, newly, extra = {}) {
   });
   document.getElementById('back').onclick = () => {
     if (p.back) { p.back(); return; }
-    if (newly[0]) { store.set('rocket_' + p.galaxy + (state.kid && state.mode === 'kid' ? '_' + state.kid.code : ''), p.id); }
+    if (newly[0] && levelOfGalaxy(p.galaxy)) { store.set(rocketKey(levelOfGalaxy(p.galaxy)), p.id); state.galaxy = p.galaxy; }
     renderMap();
-    if (newly[0] && newly[0].galaxy === p.galaxy) setTimeout(() => { placeRocket(newly[0].id, true); store.set('rocket_' + p.galaxy + (state.mode === 'kid' ? '_' + state.kid.code : ''), newly[0].id); $app.querySelector(`.pl[data-id="${newly[0].id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 700);
+    if (newly[0] && levelOfGalaxy(newly[0].galaxy) === levelOfGalaxy(p.galaxy)) setTimeout(() => { placeRocket(newly[0].id, true); store.set(rocketKey(levelOfGalaxy(p.galaxy)), newly[0].id); $app.querySelector(`.pl[data-id="${newly[0].id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 700);
   };
   document.getElementById('again').onclick = () => (p.activity ? runMission({ ...p, tasks: p.regen() }, null) : moodBefore(p));
   document.getElementById('next-level')?.addEventListener('click', () => moodBefore({ ...p, level: p.level + 1 }));
