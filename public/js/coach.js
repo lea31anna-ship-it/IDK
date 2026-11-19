@@ -1,6 +1,8 @@
 import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
+import { TROPHIES, weekDays, activityName } from './extras.js';
+import { parseWordInput } from './words.js';
 let root = null, host = null, toastEl = null; // werden in start() gesetzt
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
@@ -12,7 +14,7 @@ const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('de-DE', { day: '2-di
 const fmtDateTime = ts => ts ? new Date(ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
 const daysAgo = ts => ts ? Math.floor((Date.now() - Date.parse(ts)) / 86400000) : Infinity;
 const starsHtml = n => [1, 2, 3].map(i => `<span class="${i <= n ? '' : 'off'}">★</span>`).join('');
-const pName = id => PLANET_BY_ID[id]?.name || id;
+const pName = id => activityName(id);
 
 function toast(m) { const t = toastEl; t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); }
 async function api(path, opts = {}) {
@@ -227,7 +229,7 @@ async function openKid(id, tab = 'overview') {
 }
 async function patchKid(body) { S.kid = await api('/api/coach/kids/' + S.kid.id, { method: 'PATCH', body }); await refreshKids(); }
 
-const TABS = [['overview', '📈 Überblick'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['radio', '📡 Funkspruch'], ['notes', '📝 Notizen'], ['report', '📄 Elternbericht']];
+const TABS = [['overview', '📈 Überblick'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '📡 Funkspruch'], ['notes', '📝 Notizen'], ['report', '📄 Elternbericht']];
 function renderKid(main) {
   const k = S.kid;
   main.innerHTML = `
@@ -251,7 +253,7 @@ function renderKid(main) {
   }
   document.getElementById('edit').onclick = editKidDialog;
   const t = document.getElementById('tab');
-  ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, notes: tabNotes, report: tabReport })[S.tab](t, k);
+  ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, words: tabWords, notes: tabNotes, report: tabReport })[S.tab](t, k);
 }
 
 function tabOverview(el, k) {
@@ -269,6 +271,14 @@ function tabOverview(el, k) {
       <div class="stat"><div class="v">${acc === null ? '–' : acc + ' %'}</div><div class="l">Trefferquote (letzte 10)</div></div>
       <div class="stat"><div class="v">${minutes} min</div><div class="l">Übungszeit gesamt</div></div>
     </div>
+    ${(() => {
+      const tr = k.trophies || {}, st = k.stats || {}, wd = weekDays(st.days || []);
+      return `<div class="grid2"><div class="card"><h2>🏆 Pokale (${Object.keys(tr).length}/${TROPHIES.length})</h2>
+        <div class="trophy-row">${TROPHIES.map(t => `<span class="tr ${tr[t.id] ? 'got' : ''}" title="${esc(t.name)}: ${esc(t.desc)}${tr[t.id] ? ' – ' + esc(tr[t.id]) : ''}">${tr[t.id] ? t.icon : '·'}</span>`).join('')}</div>
+        ${k.reward?.text ? `<p class="muted" style="margin-bottom:0">🎁 Ziel: ${k.reward.goal} Pokale → ${esc(k.reward.text)}</p>` : ''}</div>
+        <div class="card"><h2>📅 Lern-Tage diese Woche</h2><div class="trophy-row">${wd.map(d => `<span class="tr day ${d.done ? 'got' : ''}" title="${d.iso}">${d.done ? '⭐' : ''}<small>${d.name}</small></span>`).join('')}</div>
+        <p class="muted" style="margin-bottom:0">Gelöste Rätsel: ${st.games || 0} · Lernwörter geübt: ${st.words || 0}×${S.lite ? ' · Stand: letzter Bericht' : ''}</p></div></div>`;
+    })()}
     <div class="card"><h2>Letzte Missionen</h2>
       ${sess.length ? `<table class="resp"><thead><tr><th>Wann</th><th>Planet</th><th>Ergebnis</th><th>Sterne</th><th>Stimmung vorher → nachher</th><th>Tipps</th><th>Dauer</th></tr></thead><tbody>
       ${sess.slice(-15).reverse().map(s => `<tr><td>${fmtDateTime(s.ts)}</td><td>${esc(pName(s.planetId))}</td><td>${s.correct}/${s.total}</td><td class="stars">${starsHtml(s.stars)}</td><td>${moodE(s.moodBefore)} → ${moodE(s.moodAfter)}</td><td>${s.tips}</td><td>${Math.round((s.durationSec || 0) / 60 * 10) / 10} min</td></tr>`).join('')}
@@ -428,6 +438,39 @@ function tabRadio(el, k) {
     tabRadio(el, S.kid);
     if (S.lite) shareLink(S.kid, text); else toast('Funkspruch gesendet');
   };
+}
+
+function tabWords(el, k) {
+  const lists = (k.wordLists || []).map(l => ({ ...l }));
+  const draw = () => {
+    el.innerHTML = `
+      <div class="card"><h2>📚 Lernwörter für ${esc(k.name)}</h2>
+        <p class="muted" style="margin-top:-6px">Lege Wortlisten an, z. B. „Schule – Woche 12“ oder „Wörter mit ie“. ${esc(k.name)} sieht sie in der App unter 📚 Wörter: anhören, üben (Diktat, Lückenwort, Rechtschreibung) und als Kreuzworträtsel oder Wortsuche. Fehler erscheinen im Fehler-Radar.</p>
+        <p class="muted">Tipp: Mit Bindestrich trennen (<b>Fahr-rad</b>), dann zeigt die App die Silben farbig.</p>
+        ${lists.map((l, i) => `<div class="wl-edit">
+          <div class="row"><input type="text" class="wl-name" data-i="${i}" value="${esc(l.name)}" maxlength="40" aria-label="Name der Liste" style="flex:1"><button class="btn small danger" data-del="${i}">Liste löschen</button></div>
+          <textarea class="wl-words" data-i="${i}" placeholder="Ein Wort pro Zeile" aria-label="Wörter">${esc((l.words || []).join('\n'))}</textarea>
+        </div>`).join('') || '<p class="muted">Noch keine Wortlisten.</p>'}
+        <div class="row"><button class="btn" id="addlist">+ Neue Wortliste</button></div>
+      </div>
+      <div class="card"><h2>🎁 Belohnungsziel</h2>
+        <p class="muted" style="margin-top:-6px">${esc(k.name)} sieht in der App, wie viele Pokale noch fehlen – z. B. „Bei 5 Pokalen darfst du dir in der Stunde ein Spiel aussuchen“.</p>
+        <div class="row"><label>Bei <input type="number" id="rgoal" min="1" max="30" value="${k.reward?.goal || 5}" style="width:70px"> Pokalen:</label>
+        <input type="text" id="rtext" maxlength="120" value="${esc(k.reward?.text || '')}" placeholder="z. B. Du darfst dir ein Spiel aussuchen! 🎲" style="flex:1;min-width:220px"></div>
+      </div>
+      <div class="row"><button class="btn primary" id="save">Speichern${S.lite ? ' & Link erstellen' : ''}</button><span class="muted" id="st"></span></div>`;
+    const sync = () => { el.querySelectorAll('.wl-name').forEach(i => { lists[i.dataset.i].name = i.value; }); el.querySelectorAll('.wl-words').forEach(t => { lists[t.dataset.i].words = parseWordInput(t.value); }); };
+    el.querySelector('#addlist').onclick = () => { sync(); lists.push({ id: 'l' + Date.now(), name: 'Lernwörter ' + new Date().toLocaleDateString('de-AT'), words: [] }); draw(); };
+    el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!await ask(`Liste „${lists[b.dataset.del].name}“ löschen?`, { okLabel: 'Löschen', danger: true })) return; sync(); lists.splice(Number(b.dataset.del), 1); draw(); });
+    el.querySelector('#save').onclick = async () => {
+      sync();
+      const goal = Math.min(Math.max(Number(el.querySelector('#rgoal').value) || 5, 1), 30), text = el.querySelector('#rtext').value.trim();
+      await patchKid({ wordLists: lists.filter(l => l.words.length).map(l => ({ id: l.id, name: l.name.trim() || 'Lernwörter', words: l.words })), reward: text ? { goal, text } : null });
+      el.querySelector('#st').textContent = '✓ Gespeichert';
+      if (S.lite) shareLink(S.kid); else toast('Gespeichert – das Kind sieht die Wörter beim nächsten Start.');
+    };
+  };
+  draw();
 }
 
 function tabNotes(el, k) {
@@ -594,8 +637,8 @@ function renderSettings(main) {
   };
 }
 
-function shareLink(k, message = '') {
-  const url = S.lite.kidLink(k, message);
+async function shareLink(k, message = '') {
+  const url = await S.lite.kidLink(k, message);
   const text = message
     ? `📡 Ein Funkspruch für ${k.name}! Einfach antippen: ${url}`
     : `🚀 Hallo! Hier ist ${k.name}s persönlicher ${APP_NAME}-Link: ${url}\n(Falls der Link nicht geht: Code „${k.code}“ in der App unter „Ich habe einen Code“ eingeben.)`;

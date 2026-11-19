@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeKidCode, decodeKidCode, kidHash, parseKidHash, encodeReport, decodeReport, CODE_ORDER } from '../public/js/codec.js';
+import { encodeKidCode, decodeKidCode, kidHash, parseKidHash, encodeReport, decodeReport, CODE_ORDER, encodeExtra, decodeExtra, linkExtra, unpackExtra } from '../public/js/codec.js';
 import { PLANETS } from '../public/js/curriculum.js';
 
 test('Codereihenfolge deckt alle Planeten ab', () => {
-  assert.deepEqual([...CODE_ORDER].sort(), PLANETS.map(p => p.id).sort());
+  for (const p of PLANETS) assert.ok(CODE_ORDER.includes(p.id), p.id);
+  assert.equal(new Set(CODE_ORDER).size, CODE_ORDER.length);
 });
 test('Zugangscode hin und zurück', () => {
   const code = encodeKidCode({ name: 'Jürgen', id: 51234, avatar: 3, autoAdvance: false, unlocked: ['mengen', 'mal7', 'schreiben'] });
@@ -34,4 +35,17 @@ test('Bericht hin und zurück', async () => {
   const r = await decodeReport('Bericht von Mia: ' + txt + ' danke');
   assert.equal(r.progress.mal7.bestStars, 2); assert.equal(r.sessions[0].moodAfter, 4); assert.equal(r.sessions[0].stars, 2);
   assert.equal(r.errors[0].task, '7 × 8'); assert.equal(r.id, 7);
+});
+
+test('Lernwörter und Belohnung reisen im Link mit', async () => {
+  const kid = { wordLists: [{ name: 'Woche 12', words: ['Fahr-rad', 'Straße', 'Größe', 'spielen'] }], reward: { goal: 5, text: 'Ein Spiel aussuchen 🎲' } };
+  const x = await encodeExtra(linkExtra(kid));
+  const code = encodeKidCode({ name: 'Mia', id: 3, unlocked: ['mengen'] });
+  const p = parseKidHash('#' + kidHash(code, 'Hallo', x));
+  assert.equal(p.message, 'Hallo');
+  const back = unpackExtra(await decodeExtra(p.extra));
+  assert.deepEqual(back.wordLists[0].words, ['Fahr-rad', 'Straße', 'Größe', 'spielen']);
+  assert.equal(back.reward.text, 'Ein Spiel aussuchen 🎲');
+  assert.ok(('#' + kidHash(code, 'Hallo', x)).length < 600, 'Link bleibt kurz');
+  assert.equal(parseKidHash('#' + kidHash(code)).extra, null);
 });

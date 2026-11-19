@@ -9,7 +9,8 @@ export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 
   'plus100', 'minus100', 'malzehner', 'halbschriftlich', 'divrest', 'plus1000', 'minus1000', 'groessen', 'sachaufgaben',
   'nomen', 'mehrzahl', 'doppel', 'ie', 'dehnung', 'trennen', 'saetze',
   'negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung',
-  'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma'];
+  'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma',
+  'lernwoerter'];
 export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟'];
 const B32 = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // ohne 0/O und 1/I/L-Verwechslung
 
@@ -57,19 +58,45 @@ export function decodeKidCode(str) {
 function bytesToB32(bytes) { let bits = 0, val = 0, out = ''; for (const b of bytes) { val = (val << 8) | b; bits += 8; while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } } if (bits) out += B32[(val << (5 - bits)) & 31]; return out; }
 function b32ToBytes(s) { let bits = 0, val = 0; const out = []; for (const c of s) { const v = B32.indexOf(c); if (v < 0) return null; val = ((val << 5) | v) & 0xffff; bits += 5; if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; } } return new Uint8Array(out); }
 
-export function kidHash(code, message) {
+export function kidHash(code, message, extra = '') {
   let h = 'k-' + code.replace(/-/g, '').toLowerCase().replace(/^([a-z]+)/, '$1-');
   if (message) h += '-m' + bytesToB32(new TextEncoder().encode(message.slice(0, 160))).toLowerCase();
+  if (extra) h += '-x' + extra.toLowerCase();
   return h;
 }
+
+// Zusatzdaten im Link (Lernwörter, Belohnungsziel): JSON -> deflate -> Base32
+export async function encodeExtra(obj) {
+  if (!obj) return '';
+  let bytes = new TextEncoder().encode(JSON.stringify(obj));
+  if (typeof CompressionStream !== 'undefined') bytes = new Uint8Array([1, ...await pipe(bytes, new CompressionStream('deflate-raw'))]);
+  else bytes = new Uint8Array([0, ...bytes]);
+  return bytesToB32(bytes);
+}
+export async function decodeExtra(str) {
+  if (!str) return null;
+  try {
+    const b = b32ToBytes(str.toUpperCase()); if (!b || !b.length) return null;
+    let body = b.slice(1);
+    if (b[0] === 1) body = await pipe(body, new DecompressionStream('deflate-raw'));
+    return JSON.parse(new TextDecoder().decode(body));
+  } catch { return null; }
+}
+// Für den Link nur das Nötigste: Listen-Namen und Wörter, Belohnungsziel
+export const linkExtra = k => {
+  const w = (k.wordLists || []).filter(l => l.words?.length).map(l => [l.name, l.words]);
+  const r = k.reward?.text ? [k.reward.goal || 5, k.reward.text] : null;
+  return w.length || r ? { w, r } : null;
+};
+export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null });
 export function parseKidHash(hash) {
-  const m = /^#?k-([a-z]+)-([0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?$/i.exec(hash || '');
+  const m = /^#?k-([a-z]+)-([0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
   const kid = decodeKidCode(`${m[1]}-${m[2]}`);
   if (!kid) return null;
   let message = null;
   if (m[3]) { const b = b32ToBytes(m[3].toUpperCase()); if (b) { try { message = new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { } } }
-  return { ...kid, message };
+  return { ...kid, message, extra: m[4] || null };
 }
 
 // ---------- Fortschrittsbericht ----------
@@ -85,6 +112,7 @@ export async function encodeReport(kid) {
     p: Object.fromEntries(Object.entries(kid.progress || {}).map(([k, p]) => [idx(k), [p.bestStars, p.attempts, p.correct, p.total, p.lastPlayed ? min(p.lastPlayed) : 0]])),
     s: (kid.sessions || []).slice(-80).map(s => [min(s.ts), idx(s.planetId), s.correct, s.total, s.moodBefore || 0, s.moodAfter || 0, s.tips || 0, s.durationSec || 0]),
     e: (kid.errors || []).slice(-120).map(e => [min(e.ts), idx(e.planetId), e.type, e.task, e.given, e.expected]),
+    t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
   };
   let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = 'J';
   if (typeof CompressionStream !== 'undefined') { bytes = await pipe(bytes, new CompressionStream('deflate-raw')); z = 'Z'; }
@@ -102,6 +130,7 @@ export async function decodeReport(text) {
     id: o.id, name: o.n, code: o.c,
     progress: Object.fromEntries(Object.entries(o.p || {}).filter(([i]) => pid(i)).map(([i, a]) => [pid(i), { bestStars: a[0], attempts: a[1], correct: a[2], total: a[3], lastPlayed: a[4] ? iso(a[4]) : null }])),
     sessions: (o.s || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), correct: a[2], total: a[3], stars: a[3] ? (a[2] / a[3] >= 1 ? 3 : a[2] / a[3] >= .9 ? 2 : a[2] / a[3] >= .7 ? 1 : 0) : 0, moodBefore: a[4] || null, moodAfter: a[5] || null, tips: a[6], durationSec: a[7] })),
+    trophies: o.t || {}, stats: o.st || null,
     errors: (o.e || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), type: String(a[2]), task: String(a[3]).slice(0, 60), given: String(a[4]).slice(0, 40), expected: String(a[5]).slice(0, 40) })),
   };
 }

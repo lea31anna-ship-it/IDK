@@ -192,3 +192,11 @@
 .lv-coach .pin-forgot { margin-top: 16px; }
 .lv-coach .pin-recovery { font: 700 1.5em ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; background: var(--brand-soft); color: var(--brand); padding: 12px; border-radius: 12px; }
 @keyframes lv-shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.lv-coach .trophy-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.lv-coach .tr { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-2); font-size: 1.25em; color: var(--muted); cursor: default; }
+.lv-coach .tr.got { background: var(--brand-soft); }
+.lv-coach .tr.day { flex-direction: column; height: 46px; font-size: 1em; }
+.lv-coach .tr.day small { font-size: .65em; }
+.lv-coach .wl-edit { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 10px 0; display: grid; gap: 8px; }
+.lv-coach .wl-edit textarea { min-height: 110px; }
+.lv-coach input[type=number] { padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }

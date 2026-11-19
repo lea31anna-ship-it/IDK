@@ -3,7 +3,8 @@
 import { start } from './coach.js';
 import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
-import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName } from './codec.js';
+import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName, encodeExtra, linkExtra } from './codec.js';
+import { parseWordInput } from './words.js';
 
 let KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
 const MAX_SESSIONS = 400, MAX_ERRORS = 600;
@@ -105,6 +106,8 @@ async function importReport(text) {
     const o = k.progress[pid];
     k.progress[pid] = !o || (p.attempts || 0) >= (o.attempts || 0) ? p : o;
   }
+  k.trophies = { ...(k.trophies || {}), ...(r.trophies || {}) };
+  if (r.stats) k.stats = r.stats;
   const last = k.sessions.at(-1)?.ts;
   if (last && (!k.lastActive || last > k.lastActive)) k.lastActive = last;
   await save(k);
@@ -140,6 +143,8 @@ async function call(path, { method = 'GET', body = {} } = {}) {
       if (Array.isArray(body.unlocked)) k.unlocked = [...new Set(body.unlocked.filter(id => PLANET_BY_ID[id]))];
       if (body.autoAdvance !== undefined) k.autoAdvance = !!body.autoAdvance;
       if (body.notes !== undefined) k.notes = String(body.notes).slice(0, 20000);
+      if (Array.isArray(body.wordLists)) k.wordLists = body.wordLists.slice(0, 12).map((l, i) => ({ id: String(l.id || 'l' + i).slice(0, 20), name: String(l.name || 'Lernwörter').slice(0, 40), words: parseWordInput((l.words || []).join('\n')).slice(0, 40) }));
+      if (body.reward !== undefined) k.reward = body.reward?.text ? { goal: Math.min(Math.max(Number(body.reward.goal) || 5, 1), 30), text: String(body.reward.text).slice(0, 120) } : null;
       recode(k); return save(k);
     }
     if (!sub && method === 'DELETE') { state.kids = state.kids.filter(x => x !== k); await store.delKid(k.id); return { ok: true }; }
@@ -153,7 +158,7 @@ async function call(path, { method = 'GET', body = {} } = {}) {
   err('Nicht unterstützt');
 }
 
-function kidLink(k, message) { return `${KID_APP_URL}#${kidHash(k.code, message)}`; }
+async function kidLink(k, message) { return `${KID_APP_URL}#${kidHash(k.code, message, await encodeExtra(linkExtra(k)))}`; }
 
 let booted = false;
 export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {}) {

@@ -110,6 +110,7 @@ function kidPublic(k) {
   return {
     name: k.name, avatar: k.avatar, code: k.code, unlocked: k.unlocked, autoAdvance: k.autoAdvance,
     progress: k.progress, messages: k.messages.filter(m => !m.read).map(({ id, text, ts }) => ({ id, text, ts })),
+    wordLists: k.wordLists || [], reward: k.reward || null,
     coachName: db.settings.coachName, practiceName: db.settings.practiceName,
   };
 }
@@ -153,13 +154,16 @@ async function api(req, res, url) {
     if (p === '/api/kid/me' && m === 'GET') return send(res, 200, kidPublic(k));
     if (p === '/api/kid/result' && m === 'POST') {
       const b = await readBody(req);
-      if (!PLANET_BY_ID[b.planetId]) return send(res, 400, { error: 'Unbekannter Planet' });
+      const isActivity = b.planetId === 'lernwoerter';
+      if (!PLANET_BY_ID[b.planetId] && !isActivity) return send(res, 400, { error: 'Unbekannter Planet' });
       const total = Math.min(Math.max(Number(b.total) || TASKS_PER_MISSION, 1), 50);
       const correct = Math.min(Math.max(Number(b.correct) || 0, 0), total);
       const stars = starsFor(correct, total);
       const mood = v => (Number.isInteger(v) && v >= 1 && v <= 4 ? v : null);
       const ts = now();
-      const pr = k.progress[b.planetId] ||= { bestStars: 0, attempts: 0, correct: 0, total: 0 };
+      if (b.trophies && typeof b.trophies === 'object') k.trophies = Object.fromEntries(Object.entries({ ...(k.trophies || {}), ...b.trophies }).slice(0, 60).map(([t, d]) => [clip(t, 20), clip(d, 10)]));
+      if (b.stats && typeof b.stats === 'object' && JSON.stringify(b.stats).length < 5000) k.stats = b.stats;
+      const pr = isActivity ? {} : (k.progress[b.planetId] ||= { bestStars: 0, attempts: 0, correct: 0, total: 0 });
       pr.attempts++; pr.correct += correct; pr.total += total; pr.bestStars = Math.max(pr.bestStars, stars); pr.lastPlayed = ts; pr.lastStars = stars;
       k.sessions.push({ ts, planetId: b.planetId, correct, total, stars, moodBefore: mood(b.moodBefore), moodAfter: mood(b.moodAfter), tips: Math.max(0, Number(b.tips) || 0), durationSec: Math.max(0, Math.round(Number(b.durationSec) || 0)) });
       if (k.sessions.length > 1000) k.sessions.splice(0, k.sessions.length - 1000);
@@ -248,6 +252,8 @@ async function api(req, res, url) {
       if (Array.isArray(b.unlocked)) k.unlocked = [...new Set(b.unlocked.filter(id => PLANET_BY_ID[id]))];
       if (b.autoAdvance !== undefined) k.autoAdvance = !!b.autoAdvance;
       if (b.notes !== undefined) k.notes = clip(b.notes, 20000);
+      if (Array.isArray(b.wordLists)) k.wordLists = b.wordLists.slice(0, 20).map((l, i) => ({ id: clip(l.id || 'l' + i, 20), name: clip(l.name, 40) || 'Lernwörter', words: (Array.isArray(l.words) ? l.words : []).slice(0, 60).map(w => clip(w, 30)).filter(Boolean) }));
+      if (b.reward !== undefined) k.reward = b.reward && b.reward.text ? { goal: Math.min(Math.max(Number(b.reward.goal) || 5, 1), 30), text: clip(b.reward.text, 120) } : null;
       saveDb(); return send(res, 200, k);
     }
     if (!sub && m === 'DELETE') { db.kids = db.kids.filter(x => x !== k); saveDb(); return send(res, 200, { ok: true }); }

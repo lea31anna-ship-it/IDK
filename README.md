@@ -24,6 +24,16 @@ Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
 
 **💡 Astronautin Nova:** Jede Aufgabe hat oben rechts eine Glühbirne. Ein Tipp darauf lässt die Astronautin erscheinen; sie erklärt die Aufgabe und liest den Hinweis vor. Nach einem Fehler kommt sie von selbst und zeigt die Lösung. Bleibt ein Kind 25 Sekunden hängen, wackelt die Glühbirne.
 
+**☰ Menü-Leiste:** Planeten · Wörter · Spiele · Pokale · Mehr
+
+**📚 Lernwörter:** Die Coachin legt pro Kind Wortlisten an (Coach-Bereich → Kind → 📚 Lernwörter). In der serverlosen Version kommen sie über den Link zum Kind. Das Kind kann die Wörter anhören (Silben farbig, wenn mit Bindestrich eingegeben), üben (Hör-Diktat, Lückenwort, Rechtschreibung mit typischen LRS-Fehlern als Ablenker) und als Kreuzworträtsel oder Wortsuche spielen. Eltern bzw. Kinder können auch eigene Wörter eintragen. Fehler landen im Fehler-Radar.
+
+**🧩 Spiele-Ecke:** Sudoku (4×4 mit Bildern, 6×6, 9×9), Kreuzworträtsel (mit Bild- und Hör-Hinweisen, auch mit Lernwörtern), Wortsuche (→↓, in der Unterstufe auch schräg) und Zahlenmauer (bis 30, bis 200, mit negativen Zahlen).
+
+**🏆 Pokale:** 20 Pokale, u. a. für Durchhalten, Mut, Hilfe holen und Rätsel. Die Coachin kann ein **Belohnungsziel** festlegen („Bei 5 Pokalen darfst du dir ein Spiel aussuchen“), das Kind sieht den Fortschritt.
+
+**📅 Lern-Tage statt Streak:** Gezählt werden Lern-Tage pro Woche mit frei wählbarem Wochenziel. Eine Pause wird nie bestraft, was bei Lernangst wichtig ist. Dazu kommen eine **Tagesmission** (schwächster gespielter Planet oder nächster neuer Planet) und eine **Erinnerung** für Eltern als wiederkehrender Termin in Google- oder Outlook-Kalender. Web-Apps dürfen keine Push-Nachrichten schicken.
+
 **🔐 Coach-Login auf der Startseite:** Mit Server führt der Knopf zum Passwort-Login. Als claude.ai-Web-App erfolgt die Anmeldung über das Claude-Konto, und nur die Besitzerin bzw. Bearbeiter*innen kommen hinein. Zusätzlich schützt ein **PIN** (4–6 Ziffern, gespeichert nur als PBKDF2-Hash), etwa wenn ein Kind das Tablet der Coachin benutzt. Nach 5 Fehlversuchen sperrt sich der Login für 5 Minuten (danach jeweils doppelt so lang). Bei vergessenem PIN hilft der Wiederherstellungs-Code, der beim Festlegen einmalig angezeigt wird.
 
 **Zahlen-Galaxie (Dyskalkulie), 18 Planeten**
