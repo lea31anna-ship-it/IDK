@@ -171,7 +171,7 @@ a { color: var(--accent); }
 .cell.a { background: var(--blue); border: 0; box-shadow: inset -3px -3px 0 rgba(0,0,0,.25); }
 .cell.b { background: var(--orange); border: 0; box-shadow: inset -3px -3px 0 rgba(0,0,0,.25); }
 .cell.gone { background: rgba(255,255,255,.25); border: 0; position: relative; }
-.cell.gone::after { content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; color: #ff6b6b; font-weight: 900; }
+.cell.gone::after { content: '\2715'; position: absolute; inset: 0; display: grid; place-items: center; color: #ff6b6b; font-weight: 900; }
 .tenframe.mark5 { background: linear-gradient(90deg, rgba(255,255,255,.08) 50%, rgba(255,207,77,.12) 50%); }
 .house { display: inline-grid; grid-template-columns: 1fr 1fr; width: 200px; font-size: 2em; font-weight: 900; }
 .house .roof { grid-column: span 2; height: 70px; background: #ff7b7b; clip-path: polygon(50% 0, 100% 100%, 0 100%); display: grid; place-items: end center; padding-bottom: 4px; }
@@ -457,3 +457,45 @@ body[data-space="nacht"] { background: #08080f; }
 body[data-space="blau"] .topbar, body[data-space="gruen"] .topbar, body[data-space="rosa"] .topbar, body[data-space="orange"] .topbar, body[data-space="nacht"] .topbar { background: linear-gradient(rgba(8,8,20,.92) 75%, transparent); }
 .shake { animation: shake .4s; }
 @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+/* ---------- Stufen pro Planet ---------- */
+.pl-medals { font-size: .85em; letter-spacing: 1px; min-height: 1.2em; }
+.pl-medals .off { filter: grayscale(1); opacity: .3; }
+.lvl-list { display: grid; gap: 8px; margin-top: 14px; }
+.lvl-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 2px solid var(--panel-border); background: rgba(255,255,255,.05); border-radius: 16px; padding: 10px 14px; }
+.lvl-card.rec { border-color: var(--accent); background: rgba(255,207,77,.12); }
+.lvl-card.locked { opacity: .5; }
+.lvl-medal { font-size: 1.8em; }
+.lvl-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lvl-t small { color: var(--muted); font-size: .78em; }
+.lvl-stars { color: var(--accent); letter-spacing: 1px; white-space: nowrap; }
+.lvl-stars .off { color: rgba(255,255,255,.25); }
+.lvl-tag { text-align: center; color: var(--muted); font-size: .82em; font-weight: 700; margin: -6px 0 8px; }
+.options.three { grid-template-columns: 1fr 1fr 1fr; }
+.options.three .opt { font-size: 1.35em; }
+@media (max-width: 420px) { .options.three { grid-template-columns: 1fr 1fr; } .options.three .opt:last-child { grid-column: 1 / -1; } }
+
+/* Eintippen (Profi-Stufe) */
+.num-entry { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 16px; }
+.num-display { min-width: 180px; min-height: 72px; padding: 8px 20px; border-radius: 18px; border: 3px solid rgba(255,255,255,.3); background: rgba(0,0,0,.25); font-size: 2.4em; font-weight: 900; display: grid; place-items: center; letter-spacing: .06em; }
+.num-display.empty::after { content: '?'; color: var(--muted); }
+.num-display.right { border-color: var(--good); background: var(--good-bg); }
+.num-display.wrong { border-color: var(--soft); background: var(--soft-bg); font-size: 1.8em; }
+.numpad { --cols: 3; width: min(100%, 300px); margin: 0; }
+.numpad .ok { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+
+/* Blitzblick */
+.visual.flashed > * { visibility: hidden; }
+.visual.flashed { position: relative; }
+.visual.flashed::after { content: '\1F440  Was hast du gesehen?'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 700; }
+.flash-again { display: flex; margin: 0 auto; min-height: 44px; padding: 8px 18px; }
+
+/* ---------- Raumstationen ---------- */
+.pl.station .st-orb { width: 84px; height: 84px; border-radius: 22px; display: grid; place-items: center; font-size: 2.6em; background: linear-gradient(135deg, #3b4b8a, #1c2456); border: 3px solid #9fb4ff; box-shadow: 0 0 24px rgba(122,170,255,.5); transform: rotate(-6deg); }
+.pl.station.final .st-orb { width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(circle, #7a3cff, #1b0f4a 70%); border-color: #d4b8ff; box-shadow: 0 0 40px rgba(170,110,255,.8); }
+.pl.station.locked .st-orb { filter: grayscale(1) brightness(.5); box-shadow: none; }
+.st-new { color: var(--accent); font-weight: 800; font-size: .85em; }
+.st-big { font-size: 4em; }
+.hearts-big { font-size: 2em; letter-spacing: 6px; margin: .2em 0; }
+.hearts { font-size: 1.1em; white-space: nowrap; }
+.hearts.lost { animation: shake .5s; }

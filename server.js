@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION } from './public/js/curriculum.js';
+import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION, levelStars } from './public/js/curriculum.js';
 import { cleanProfile, cleanGoals, cleanLessons, cleanOrg } from './public/js/org-model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -157,7 +157,8 @@ async function api(req, res, url) {
     if (p === '/api/kid/me' && m === 'GET') return send(res, 200, kidPublic(k));
     if (p === '/api/kid/result' && m === 'POST') {
       const b = await readBody(req);
-      const isActivity = b.planetId === 'lernwoerter';
+      const isActivity = b.planetId === 'lernwoerter' || b.planetId === 'station';
+      const level = [1, 2, 3].includes(b.level) ? b.level : null;
       if (!PLANET_BY_ID[b.planetId] && !isActivity) return send(res, 400, { error: 'Unbekannter Planet' });
       const total = Math.min(Math.max(Number(b.total) || TASKS_PER_MISSION, 1), 50);
       const correct = Math.min(Math.max(Number(b.correct) || 0, 0), total);
@@ -167,11 +168,12 @@ async function api(req, res, url) {
       if (b.trophies && typeof b.trophies === 'object') k.trophies = Object.fromEntries(Object.entries({ ...(k.trophies || {}), ...b.trophies }).slice(0, 60).map(([t, d]) => [clip(t, 20), clip(d, 10)]));
       if (b.stats && typeof b.stats === 'object' && JSON.stringify(b.stats).length < 5000) k.stats = b.stats;
       const pr = isActivity ? {} : (k.progress[b.planetId] ||= { bestStars: 0, attempts: 0, correct: 0, total: 0 });
+      if (!isActivity) { pr.lv = levelStars(pr); pr.lv[level || 2] = Math.max(pr.lv[level || 2] || 0, stars); }
       pr.attempts++; pr.correct += correct; pr.total += total; pr.bestStars = Math.max(pr.bestStars, stars); pr.lastPlayed = ts; pr.lastStars = stars;
-      k.sessions.push({ ts, planetId: b.planetId, correct, total, stars, moodBefore: mood(b.moodBefore), moodAfter: mood(b.moodAfter), tips: Math.max(0, Number(b.tips) || 0), durationSec: Math.max(0, Math.round(Number(b.durationSec) || 0)) });
+      k.sessions.push({ ts, planetId: b.planetId, level, correct, total, stars, moodBefore: mood(b.moodBefore), moodAfter: mood(b.moodAfter), tips: Math.max(0, Number(b.tips) || 0), durationSec: Math.max(0, Math.round(Number(b.durationSec) || 0)) });
       if (k.sessions.length > 1000) k.sessions.splice(0, k.sessions.length - 1000);
       for (const e of (Array.isArray(b.errors) ? b.errors.slice(0, 50) : [])) {
-        k.errors.push({ ts, planetId: b.planetId, task: clip(e.task, 60), given: clip(e.given, 40), expected: clip(e.expected, 40), type: ERROR_TYPES[e.type] ? e.type : 'sonstiges' });
+        k.errors.push({ ts, planetId: PLANET_BY_ID[e.planetId] ? e.planetId : b.planetId, task: clip(e.task, 60), given: clip(e.given, 40), expected: clip(e.expected, 40), type: ERROR_TYPES[e.type] ? e.type : 'sonstiges' });
       }
       if (k.errors.length > 3000) k.errors.splice(0, k.errors.length - 3000);
       k.lastActive = ts; saveDb();

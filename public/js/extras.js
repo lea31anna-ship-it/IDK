@@ -1,9 +1,9 @@
 // Motivation & Alltag: Pokale, Lern-Tage, Tagesmission, Kalender-Erinnerung, Töne.
 // Bewusst OHNE klassische „Streak“: Bei Kindern mit Lernangst erzeugt eine abreißende Serie
 // Druck. Stattdessen zählen Lern-Tage pro Woche – eine Pause wird nie bestraft.
-import { PLANETS, PLANET_BY_ID, GALAXIES, planetsOf } from './curriculum.js';
+import { PLANETS, PLANET_BY_ID, GALAXIES, planetsOf, levelStars } from './curriculum.js';
 
-export const emptyStats = () => ({ missions: 0, perfect: 0, tipsUsed: 0, brave: 0, comebacks: 0, words: 0, games: 0, gameKinds: {}, days: [] });
+export const emptyStats = () => ({ missions: 0, perfect: 0, tipsUsed: 0, brave: 0, comebacks: 0, words: 0, games: 0, gameKinds: {}, days: [], stations: 0, perfectStations: 0, profi: 0 });
 
 export const TROPHIES = [
   { id: 'start', icon: '🚀', name: 'Startrakete', desc: 'Deine erste Mission gespielt', test: s => s.missions >= 1 },
@@ -24,10 +24,15 @@ export const TROPHIES = [
   { id: 'game1', icon: '🧩', name: 'Rätsel-Fuchs', desc: 'Dein erstes Rätsel gelöst', test: s => s.games >= 1 },
   { id: 'game10', icon: '🏆', name: 'Rätsel-Pokal', desc: '10 Rätsel gelöst', test: s => s.games >= 10 },
   { id: 'allgames', icon: '🎲', name: 'Spiele-Profi', desc: 'Jedes Spiel aus der Spiele-Ecke einmal gelöst', test: s => ['sudoku', 'kreuzwort', 'wortsuche', 'zahlenmauer'].every(k => s.gameKinds?.[k]) },
+  { id: 'profi', icon: '🥇', name: 'Profi-Abzeichen', desc: 'Eine Profi-Stufe (Stufe 3) geschafft', test: s => s.profi >= 1 },
+  { id: 'crown5', icon: '🎖️', name: 'Meister-Orden', desc: '5 Planeten in allen 3 Stufen geschafft', test: (s, p) => crowns(p) >= 5 },
+  { id: 'station1', icon: '🛰️', name: 'Stations-Held', desc: 'Ein Raumstations-Quiz gemeistert', test: s => s.stations >= 1 },
+  { id: 'hearts3', icon: '💖', name: 'Unverwundbar', desc: 'Ein Raumstations-Quiz ohne ein Leben zu verlieren', test: s => s.perfectStations >= 1 },
   { id: 'week3', icon: '📅', name: 'Dranbleiben', desc: 'An 3 Tagen in einer Woche geübt', test: s => maxDaysInAWeek(s.days) >= 3 },
   { id: 'week5', icon: '🔥', name: 'Wochen-Held', desc: 'An 5 Tagen in einer Woche geübt', test: s => maxDaysInAWeek(s.days) >= 5 },
 ];
-const done = p => Object.values(p || {}).filter(x => (x.bestStars || 0) >= 1).length;
+const done = p => Object.entries(p || {}).filter(([id, x]) => PLANET_BY_ID[id] && (x.bestStars || 0) >= 1).length;
+const crowns = p => Object.entries(p || {}).filter(([id, x]) => PLANET_BY_ID[id] && Object.values(levelStars(x)).every(v => v >= 1)).length;
 
 // ---------- Lern-Tage ----------
 export const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -100,7 +105,7 @@ export function sound(kind) {
   } catch { /* Audio nicht verfügbar */ }
 }
 
-export const ACTIVITY_NAMES = { lernwoerter: 'Lernwörter-Training' };
+export const ACTIVITY_NAMES = { lernwoerter: 'Lernwörter-Training', station: 'Raumstation-Quiz' };
 export const activityName = id => PLANET_BY_ID[id]?.name || ACTIVITY_NAMES[id] || id;
 
 // ---------- Personalisierung ----------

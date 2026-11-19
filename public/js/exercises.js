@@ -2,15 +2,15 @@
 // gezielt nach typischen Fehlermustern gebaut. So weiß die App bei jedem Fehler,
 // WELCHE Art Fehler passiert ist (Fehler-Radar).
 
-import { TASKS_PER_MISSION } from './curriculum.js';
+import { TASKS_PER_MISSION, PLANET_LEVELS } from './curriculum.js';
 
 import { rnd, pick, shuffle, reverseDigits, options, numFiller } from './util.js';
 import { GEN2 } from './exercises2.js';
 export { shuffle };
 
 // ---------- Mathe ----------
-function mengen() {
-  const n = rnd(1, 10);
+function mengen(level = 2) {
+  const n = level === 1 ? rnd(1, 5) : rnd(1, 10);
   return {
     prompt: 'Wie viele Punkte siehst du?', speak: 'Wie viele Punkte siehst du?',
     visual: { type: 'tenframe', groups: [{ n, color: 'a' }] }, label: `Menge ${n}`,
@@ -18,8 +18,8 @@ function mengen() {
     hint: { text: 'Tipp: Eine volle Reihe hat immer 5 Punkte. Zähle von 5 aus weiter!', visual: { type: 'tenframe', groups: [{ n, color: 'a' }], mark5: true } },
   };
 }
-function zerlegen() {
-  const total = rnd(4, 10), a = rnd(0, total), c = total - a;
+function zerlegen(level = 2) {
+  const total = level === 1 ? rnd(3, 6) : rnd(4, 10), a = rnd(0, total), c = total - a;
   return {
     prompt: `${total} = ${a} + ?`, speak: `${total} ist gleich ${a} plus wie viel?`,
     visual: { type: 'house', total, a }, label: `${total} = ${a} + _`,
@@ -27,16 +27,17 @@ function zerlegen() {
     hint: { text: `Lege ${total} Plättchen. ${a} sind schon blau – wie viele sind noch übrig?`, visual: { type: 'tenframe', groups: [{ n: a, color: 'a' }, { n: c, color: 'empty' }] } },
   };
 }
-function plus10() {
-  const a = rnd(1, 9), b = rnd(1, 10 - a), c = a + b;
+function plus10(level = 2) {
+  const max = level === 1 ? 5 : 10;
+  const a = rnd(1, max - 1), b = rnd(1, max - a), c = a + b;
   return {
     prompt: `${a} + ${b} = ?`, speak: `${a} plus ${b}`, visual: { type: 'big' }, label: `${a} + ${b}`,
     options: options(c, [{ v: c + 1, type: 'zaehlfehler' }, { v: c - 1, type: 'zaehlfehler' }, { v: Math.abs(a - b), type: 'operation' }], numFiller(c, 3)),
     hint: { text: `Blaue Punkte: ${a}, orange Punkte: ${b}. Wie viele zusammen?`, visual: { type: 'tenframe', groups: [{ n: a, color: 'a' }, { n: b, color: 'b' }] } },
   };
 }
-function minus10() {
-  const a = rnd(2, 10), b = rnd(1, a), c = a - b;
+function minus10(level = 2) {
+  const a = rnd(2, level === 1 ? 5 : 10), b = rnd(1, a), c = a - b;
   return {
     prompt: `${a} − ${b} = ?`, speak: `${a} minus ${b}`, visual: { type: 'big' }, label: `${a} − ${b}`,
     options: options(c, [{ v: c + 1, type: 'zaehlfehler' }, { v: c - 1, type: 'zaehlfehler' }, { v: a + b, type: 'operation' }], numFiller(c, 3)),
@@ -230,23 +231,52 @@ function schreiben() {
 
 const GEN = { ...GEN2, mengen, zerlegen, plus10, minus10, plus20, minus20, geteilt, anlaut, vokale, silben, reime, bdpq, lesen, schreiben };
 
-export function generateMission(planetId, count = TASKS_PER_MISSION) {
+function rawMission(planetId, count, level) {
   const tasks = [];
   const m = /^mal(\d+)$/.exec(planetId);
   if (m) {
     const n = Number(m[1]);
-    const ks = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const ks = level === 1 ? shuffle([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]) : shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     for (let i = 0; i < count; i++) tasks.push(malTask(n, ks[i % 10]));
     return tasks;
   }
-  const gen = planetId === 'malmix' ? () => malTask(rnd(2, 10), rnd(2, 10)) : GEN[planetId];
+  const gen = planetId === 'malmix' ? () => (level === 1 ? malTask(rnd(2, 5), rnd(2, 5)) : malTask(rnd(2, 10), rnd(2, 10))) : GEN[planetId];
   if (!gen) throw new Error('Unbekannter Planet: ' + planetId);
   const labels = new Set();
   let guard = 0;
   while (tasks.length < count && guard++ < 300) {
-    const t = gen();
+    const t = gen(level);
     if (labels.has(t.label) && guard < 250) continue; // möglichst keine Wiederholungen
     labels.add(t.label); tasks.push(t);
   }
   return tasks;
+}
+
+const isNumberAnswer = label => /^−?\d+$/.test(String(label));
+/** Passt eine Aufgabe an die Stufe an: Stufe 1 = 3 Antworten, Stufe 3 = Zahlen selbst eintippen. */
+export function adaptTask(t, level) {
+  if (level === 1 && t.options.length > 3) {
+    const right = t.options.find(o => o.correct);
+    const wrong = t.options.filter(o => !o.correct);
+    const keep = [...wrong.filter(o => o.type !== 'sonstiges'), ...wrong.filter(o => o.type === 'sonstiges')].slice(0, 2);
+    t.options = shuffle([right, ...keep]);
+  }
+  if (level === 3 && t.options.every(o => isNumberAnswer(o.label)) && !t.visual?.noInput) t.input = 'number';
+  return t;
+}
+
+/** Mission für einen Planeten in einer Stufe (1 Entdecker, 2 Pilot, 3 Profi). */
+export function generateMission(planetId, count = null, level = 2) {
+  const n = count || PLANET_LEVELS[level - 1]?.tasks || TASKS_PER_MISSION;
+  const tasks = rawMission(planetId, n, level).map(t => adaptTask(t, level));
+  if (planetId === 'mengen' && level === 3) tasks.forEach(t => { t.flash = true; t.prompt = 'Blitzblick! Wie viele Punkte waren es?'; });
+  return tasks;
+}
+
+/** Raumstations-Quiz: gemischte Aufgaben aus mehreren Planeten (Stufe 2). src = Planet der Aufgabe. */
+export function stationQuiz(planetIds, count = 40) {
+  const pools = shuffle(planetIds).map(id => ({ id, tasks: rawMission(id, Math.ceil(count / planetIds.length) + 1, 2) }));
+  const out = [];
+  for (let i = 0; out.length < count && i < 60; i++) for (const p of pools) { const t = p.tasks[i]; if (t && out.length < count) out.push({ ...t, src: p.id }); }
+  return shuffle(out);
 }

@@ -1,5 +1,6 @@
+import { PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET } from './curriculum.js';
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
-import { generateMission, syllablesOf } from './exercises.js';
+import { generateMission, syllablesOf, stationQuiz } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
 import { TROPHIES, emptyStats, award, weekDays, dailyMission, calendarLinks, sound, today, SHIPS, SPACES, rankFor } from './extras.js';
 import { cleanWord, syllablesOfCustom, parseWordInput, wordMission } from './words.js';
@@ -234,18 +235,26 @@ const open = id => isUnlocked(id, unlockCtx());
 
 // ---------- Galaxie-Karte ----------
 const SPACING = 170;
+// Karte: Planeten und dazwischen Raumstationen
+function mapNodes(gid) {
+  const list = planetsOf(gid), sts = stationsOf(gid), nodes = [];
+  list.forEach((p, i) => { nodes.push({ kind: 'planet', id: p.id, p }); for (const st of sts.filter(x => x.after === i)) nodes.push({ kind: 'station', id: st.id, st }); });
+  return nodes;
+}
+const STATIONS = Object.fromEntries(GALAXIES.flatMap(g => stationsOf(g.id)).map(st => [st.id, st]));
+const galaxyOfNode = id => PLANET_BY_ID[id]?.galaxy || STATIONS[id]?.galaxy;
+const stationBest = id => getProfile().stations?.[id] || null;
 function planetPos(i) { return { x: 50 + 32 * Math.sin(i * 1.15), y: 90 + i * SPACING }; }
 
 function renderMap(focusId = null) {
   const g = GALAXIES.find(x => x.id === state.galaxy) || GALAXIES[0];
-  const list = planetsOf(g.id);
-  const totalStars = Object.values(state.progress).reduce((a, p) => a + (p.bestStars || 0), 0);
+  const list = planetsOf(g.id), nodes = mapNodes(g.id);
   const kid = state.mode === 'kid' ? state.kid : null;
   const nextId = list.find(p => open(p.id) && !(state.progress[p.id]?.bestStars >= 1))?.id;
-  const height = 90 + (list.length - 1) * SPACING + 120;
+  const height = 90 + (nodes.length - 1) * SPACING + 120;
 
   let pathD = '';
-  list.forEach((p, i) => { const { x, y } = planetPos(i); pathD += (i ? ' L ' : 'M ') + `${x} ${y}`; });
+  nodes.forEach((n, i) => { const { x, y } = planetPos(i); pathD += (i ? ' L ' : 'M ') + `${x} ${y}`; });
 
   const dm = dailyMission(state.progress, open, g.id);
   const doneToday = (getProfile().stats?.days || []).includes(today());
@@ -260,9 +269,18 @@ function renderMap(focusId = null) {
     </nav>
     <div class="map" id="map" style="height:${height}px">
       <svg class="path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}"/></svg>
-      ${list.map((p, i) => {
+      ${nodes.map((node, i) => {
         const { x, y } = planetPos(i);
+        if (node.kind === 'station') {
+          const st = node.st, ok = stationOpen(st, state.progress), best = stationBest(st.id);
+          return `<button class="pl station ${ok ? '' : 'locked'} ${st.final ? 'final' : ''}" data-st="${st.id}" style="left:${x}%;top:${y}px" aria-label="${esc(st.name)}: ${ok ? 'Quiz mit 3 Leben' : 'verschlossen'}">
+            <span class="st-orb">${ok ? (st.final ? '🌀' : '🛰️') : '🔒'}</span>
+            <span class="pl-name">${esc(st.name)}</span>
+            <span class="pl-stars">${best?.best ? '❤️'.repeat(best.best) : ok ? '<span class="st-new">Quiz!</span>' : ''}</span></button>`;
+        }
+        const p = node.p;
         const pr = state.progress[p.id];
+        const ls = levelStars(pr);
         const isOpen = open(p.id);
         const stars = pr?.bestStars || 0;
         const flagged = kid && state.unlocked.includes(p.id) && !DEFAULT_UNLOCKED.includes(p.id) && !stars;
@@ -270,7 +288,7 @@ function renderMap(focusId = null) {
             aria-label="${esc(p.name)}: ${isOpen ? (stars ? stars + ' Sterne' : 'offen') : 'verschlossen'}">
           <span class="orb ${i % 3 === 1 ? 'ring' : ''} ${p.boss ? 'boss' : ''}" style="--h:${p.hue}">${isOpen ? esc(p.label) : '<span class="lock">🔒</span>'}${flagged ? '<span class="flag" title="Von deiner Coachin freigeschaltet">🚩</span>' : ''}</span>
           <span class="pl-name">${esc(p.name)}</span>
-          <span class="pl-stars">${isOpen && pr ? [1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">★</span>`).join('') : ''}</span>
+          <span class="pl-medals">${isOpen && pr ? PLANET_LEVELS.map(L => `<span class="${ls[L.n] >= 1 ? '' : 'off'}" title="Stufe ${L.n}">${L.medal}</span>`).join('') : ''}</span>
         </button>`;
       }).join('')}
       <div class="rocket ${look().ship === '🚀' ? '' : 'norot'}" id="rocket" aria-hidden="true">${look().ship}</div>
@@ -290,12 +308,23 @@ function renderMap(focusId = null) {
 
   // Rakete parken
   const rocketAt = store.get('rocket_' + g.id + (kid ? '_' + kid.code : ''), null);
-  const startId = (rocketAt && PLANET_BY_ID[rocketAt] && open(rocketAt)) ? rocketAt : (nextId || list[0].id);
+  const startId = (rocketAt && ((PLANET_BY_ID[rocketAt] && open(rocketAt)) || (STATIONS[rocketAt] && galaxyOfNode(rocketAt) === g.id))) ? rocketAt : (nextId || list[0].id);
   placeRocket(startId, false);
-  const startEl = $app.querySelector(`.pl[data-id="${startId}"]`);
+  const startEl = $app.querySelector(`.pl[data-id="${startId}"], .pl[data-st="${startId}"]`);
   if (startEl) setTimeout(() => startEl.scrollIntoView({ block: 'center', behavior: state.settings.calm ? 'auto' : 'smooth' }), 50);
 
-  $app.querySelectorAll('.pl').forEach(el => el.onclick = () => {
+  $app.querySelectorAll('.pl[data-st]').forEach(el => el.onclick = () => {
+    const st = STATIONS[el.dataset.st];
+    if (!stationOpen(st, state.progress)) {
+      el.classList.remove('wiggle'); void el.offsetWidth; el.classList.add('wiggle');
+      toast(`🔒 Die ${st.name} öffnet sich, wenn du ${st.final ? 'alle Planeten dieser Galaxie' : 'die 4 Planeten davor'} geschafft hast.`);
+      return;
+    }
+    const moved = placeRocket(st.id, true);
+    store.set('rocket_' + g.id + (kid ? '_' + kid.code : ''), st.id);
+    setTimeout(() => showStationSheet(st), moved && !state.settings.calm ? 950 : 0);
+  });
+  $app.querySelectorAll('.pl[data-id]').forEach(el => el.onclick = () => {
     const p = PLANET_BY_ID[el.dataset.id];
     if (!open(p.id)) {
       el.classList.remove('wiggle'); void el.offsetWidth; el.classList.add('wiggle');
@@ -320,8 +349,9 @@ function focusPlanet(id) {
 }
 function placeRocket(id, animate) {
   const r = document.getElementById('rocket');
-  const p = PLANET_BY_ID[id]; if (!r || !p) return false;
-  const { x, y } = planetPos(p.index);
+  const gal = galaxyOfNode(id); if (!r || !gal) return false;
+  const idx = mapNodes(gal).findIndex(n => n.id === id); if (idx < 0) return false;
+  const { x, y } = planetPos(idx);
   const oldTop = parseFloat(r.style.top) || 0;
   const target = { left: `calc(${x}% - 48px)`, top: `${y - 52}px` };
   if (r.style.top === target.top) return false;
@@ -334,24 +364,61 @@ function placeRocket(id, animate) {
 }
 
 function showPlanetSheet(p) {
-  const pr = state.progress[p.id];
+  const pr = state.progress[p.id], ls = levelStars(pr), rec = nextLevel(pr);
   const sheet = openModal(`
     <div style="text-align:center">
       <span class="orb ${p.boss ? 'boss' : ''}" style="--h:${p.hue}">${esc(p.label)}</span>
       <h2>${esc(p.name)}</h2>
       <p style="margin:.2em 0;color:var(--muted)">${esc(p.topic)}</p>
-      ${pr ? `<p class="pl-stars" style="font-size:1.6em">${[1, 2, 3].map(n => `<span class="${n <= pr.bestStars ? '' : 'off'}">★</span>`).join('')}</p>` : `<p>Hier warst du noch nie – auf geht's!</p>`}
-      <p class="who-sub">${TASKS_PER_MISSION} Aufgaben · ab ${PASS_CORRECT} richtigen ist der nächste Planet offen · kein Zeitdruck</p>
     </div>
+    <div class="lvl-list">${PLANET_LEVELS.map(L => {
+      const ok = levelOpen(pr, L.n), st = ls[L.n];
+      return `<button class="lvl-card ${ok ? '' : 'locked'} ${L.n === rec && ok ? 'rec' : ''}" data-lv="${L.n}" aria-label="Stufe ${L.n} ${L.name}${ok ? '' : ', verschlossen'}">
+        <span class="lvl-medal">${ok ? L.medal : '🔒'}</span>
+        <span class="lvl-t"><b>Stufe ${L.n}: ${L.name}</b><small>${ok ? esc(L.desc) : `Schaffe zuerst Stufe ${L.n - 1}`}</small></span>
+        <span class="lvl-stars">${st ? '★'.repeat(st) + '<span class="off">' + '★'.repeat(3 - st) + '</span>' : ''}</span></button>`;
+    }).join('')}</div>
+    <p class="who-sub" style="text-align:center">Ab 7 von 10 richtigen ist eine Stufe geschafft · kein Zeitdruck</p>
     <div class="sheet-actions">
-      <button class="btn primary block" id="start-mission">🚀 Mission starten</button>
+      <button class="btn primary block" id="start-mission">🚀 Stufe ${rec} starten</button>
       <button class="btn block" id="say-topic">🔊 Vorlesen</button>
       <button class="btn block" id="close">Zurück</button>
     </div>`);
-  sheet.querySelector('#start-mission').onclick = () => { closeModal(); moodBefore(p); };
+  const go = n => { closeModal(); moodBefore({ ...p, level: n }); };
+  sheet.querySelector('#start-mission').onclick = () => go(rec);
+  sheet.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => {
+    const n = Number(b.dataset.lv);
+    if (!levelOpen(pr, n)) { toast(`🔒 Schaffe zuerst Stufe ${n - 1}!`); return; }
+    go(n);
+  });
   sheet.querySelector('#say-topic').onclick = () => speak(`${p.name}. ${p.topic}.`);
   sheet.querySelector('#close').onclick = () => closeModal();
   if (state.settings.autoread) speak(`${p.name}. ${p.topic}.`);
+}
+function showStationSheet(st) {
+  const best = stationBest(st.id);
+  const names = st.planets.map(id => PLANET_BY_ID[id].name);
+  const sheet = openModal(`
+    <div style="text-align:center">
+      <div class="st-big">${st.final ? '🌀' : '🛰️'}</div>
+      <h2>${esc(st.name)}</h2>
+      <p style="margin:.2em 0">Großes Quiz mit Aufgaben aus ${st.final ? 'der ganzen Galaxie' : names.length + ' Planeten'}!</p>
+      <p class="hearts-big" aria-label="3 Leben">❤️❤️❤️</p>
+      <p class="who-sub">Du hast 3 Leben. Schaffe ${STATION_TARGET} richtige Antworten, bevor alle Leben weg sind. Jede falsche Antwort kostet ein Leben – Astronautin Nova erklärt dir dann die Lösung.</p>
+      ${best ? `<p>Dein Rekord: ${best.best ? '❤️'.repeat(best.best) + ' gemeistert' : `${best.most || 0} richtige`}</p>` : ''}
+      ${st.final ? '' : `<p class="who-sub">Themen: ${names.map(esc).join(' · ')}</p>`}
+    </div>
+    <div class="sheet-actions">
+      <button class="btn primary block" id="start-mission">🛰️ Quiz starten</button>
+      <button class="btn block" id="close">Zurück</button>
+    </div>`);
+  sheet.querySelector('#start-mission').onclick = () => {
+    closeModal();
+    const regen = () => stationQuiz(st.planets);
+    runMission({ id: 'station', st, name: st.name, label: '🛰️', galaxy: st.galaxy, activity: true, station: true, lives: 3, target: STATION_TARGET, tasks: regen(), regen, back: () => { state.galaxy = st.galaxy; renderMap(); } }, null);
+  };
+  sheet.querySelector('#close').onclick = () => closeModal();
+  if (state.settings.autoread) speak(`${st.name}. Quiz mit drei Leben.`);
 }
 
 function moodPicker(id) {
@@ -379,20 +446,21 @@ const PRAISE = ['Super!', 'Klasse!', 'Stark gemacht!', 'Genau richtig!', 'Wow, t
 const COMFORT = ['Fast! Fehler helfen beim Lernen.', 'Nicht schlimm – schau mal, so geht es:', 'Guter Versuch! Hier ist die Lösung:', 'Kein Problem – jetzt weißt du es!'];
 
 function runMission(p, moodB) {
-  const tasks = p.tasks || generateMission(p.id);
-  const m = { p, tasks, i: 0, correct: 0, errors: [], tips: 0, started: Date.now(), moodB, active: true };
+  const tasks = p.tasks || generateMission(p.id, null, p.level || 2);
+  const m = { p, tasks, i: 0, correct: 0, errors: [], tips: 0, started: Date.now(), moodB, active: true, lives: p.lives || 0 };
   runMission.current = m;
   const isMath = p.galaxy === 'zahlen';
 
   const renderTask = () => {
     const t = tasks[m.i];
-    const pct = (m.i / tasks.length) * 100;
+    const pct = p.lives ? (m.correct / p.target) * 100 : (m.i / tasks.length) * 100;
     $app.innerHTML = `
       <div class="mission-top">
         <button class="icon-btn" id="quit" aria-label="Mission abbrechen">✕</button>
         <div class="fuel" aria-hidden="true"><div class="fuel-fill" style="width:${pct}%"></div><span class="fuel-rocket ${look().ship === '🚀' ? '' : 'norot'}" style="left:${pct}%">${look().ship}</span></div>
-        <span class="fuel-count">${m.i + 1}/${tasks.length}</span>
+        ${p.lives ? `<span class="hearts" id="hearts" aria-label="${m.lives} Leben">${'❤️'.repeat(m.lives)}${'🤍'.repeat(p.lives - m.lives)}</span><span class="fuel-count">${m.correct}/${p.target}</span>` : `<span class="fuel-count">${m.i + 1}/${tasks.length}</span>`}
       </div>
+      ${p.level ? `<div class="lvl-tag">${PLANET_LEVELS[p.level - 1].medal} ${esc(p.name)} · Stufe ${p.level}</div>` : p.station ? `<div class="lvl-tag">🛰️ ${esc(p.name)}</div>` : ''}
       <section class="panel task">
         <button class="hint-bulb" id="tip" aria-label="Hinweis vom Astronauten" title="Ich weiß nicht weiter">💡</button>
         <div class="prompt-row">
@@ -400,7 +468,10 @@ function runMission(p, moodB) {
           <button class="icon-btn" id="say" aria-label="Vorlesen">🔊</button>
         </div>
         <div class="visual">${renderVisual(t.visual, p.id)}</div>
-        <div class="options ${t.options.some(o => !o.display && o.label.length > 14) ? 'long' : ''} ${t.options.length === 2 ? 'two' : ''}">${t.options.map((o, k) => `<button class="opt ${o.big ? 'big' : ''}" data-k="${k}">${o.emoji ? `<span class="opt-emoji">${o.emoji}</span>` : ''}<span>${o.display ? esc(o.display) : (p.id === 'lesen' || p.id === 'silben' || p.id === 'bdpq' || p.id === 'schreiben' || p.activity ? esc(o.label) : wordHtml(o.label))}</span></button>`).join('')}</div>
+        ${t.flash ? '<button class="btn flash-again hidden" id="flash">👀 Nochmal kurz zeigen</button>' : ''}
+        ${t.input === 'number' ? `<div class="num-entry"><div class="num-display" id="numd" aria-live="polite" aria-label="Deine Antwort"></div>
+          <div class="g-pad numpad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => `<button data-d="${d}">${d}</button>`).join('')}${t.options.some(o => o.label.startsWith('−')) ? '<button data-d="−">−</button>' : '<button data-d="del" aria-label="Löschen">⌫</button>'}<button data-d="0">0</button><button data-d="ok" class="ok" aria-label="Antwort prüfen">✓</button>${t.options.some(o => o.label.startsWith('−')) ? '<button data-d="del" aria-label="Löschen">⌫</button>' : ''}</div></div>` : ''}
+        <div class="options ${t.input === 'number' ? 'hidden' : ''} ${t.options.some(o => !o.display && o.label.length > 14) ? 'long' : ''} ${t.options.length === 2 ? 'two' : ''} ${t.options.length === 3 ? 'three' : ''}">${t.options.map((o, k) => `<button class="opt ${o.big ? 'big' : ''}" data-k="${k}">${o.emoji ? `<span class="opt-emoji">${o.emoji}</span>` : ''}<span>${o.display ? esc(o.display) : (p.id === 'lesen' || p.id === 'silben' || p.id === 'bdpq' || p.id === 'schreiben' || p.activity ? esc(o.label) : wordHtml(o.label))}</span></button>`).join('')}</div>
         <div class="feedback" id="fb" aria-live="assertive"></div>
         <div id="hint"></div>
         <div class="mission-bottom">
@@ -446,34 +517,79 @@ function runMission(p, moodB) {
     bulb.onclick = () => { if (!tipShown) m.tips++; showHint(); bulb.classList.remove('nudge'); bulb.classList.add('used'); };
     clearTimeout(runMission.nudge);
     runMission.nudge = setTimeout(() => { if (!tipShown && document.body.contains(bulb) && !bulb.disabled) bulb.classList.add('nudge'); }, 25000);
-    const next = () => { if (!m.active || runMission.current !== m) return; m.i++; if (m.i < tasks.length) renderTask(); else finish(); };
+    const next = () => {
+      if (!m.active || runMission.current !== m) return;
+      m.i++;
+      if (p.lives && (m.correct >= p.target || m.lives <= 0)) return finish();
+      if (m.i < tasks.length) renderTask(); else finish();
+    };
     document.getElementById('next').onclick = next;
 
-    $app.querySelectorAll('.opt').forEach(btn => btn.onclick = () => {
-      const o = t.options[Number(btn.dataset.k)];
-      $app.querySelectorAll('.opt').forEach(b => b.disabled = true);
+    // Antwort auswerten (Auswahl oder eingetippte Zahl)
+    const answer = (o, markRight, markWrong) => {
+      $app.querySelectorAll('.opt, .numpad button').forEach(b => b.disabled = true);
       clearTimeout(runMission.nudge);
       document.getElementById('tip').disabled = true;
+      $app.querySelector('.visual')?.classList.remove('flashed'); document.getElementById('flash')?.classList.add('hidden');
       const fb = document.getElementById('fb');
-      const right = t.options.findIndex(x => x.correct);
+      const right = t.options.find(x => x.correct);
       if (o.correct) {
-        m.correct++; btn.classList.add('right');
+        m.correct++; markRight();
         const msg = PRAISE[Math.floor(Math.random() * PRAISE.length)];
         fb.className = 'feedback good'; fb.textContent = '⭐ ' + msg;
         if (state.settings.sound) sound('right'); else speak(msg, 1);
-        $app.querySelectorAll('.opt').forEach((b, k) => { if (k !== right) b.classList.add('fade'); });
         setTimeout(next, state.settings.calm ? 1400 : 1100);
       } else {
-        btn.classList.add('wrong');
-        $app.querySelectorAll('.opt')[right].classList.add('right');
-        m.errors.push({ task: t.label, given: o.label, expected: t.options[right].label, type: o.type || 'sonstiges' });
+        markWrong();
+        m.errors.push({ task: t.label, given: o.label, expected: right.label, type: o.type || 'sonstiges', ...(t.src ? { planetId: t.src } : {}) });
         if (state.settings.sound) sound('wrong');
-        const msg = COMFORT[Math.floor(Math.random() * COMFORT.length)];
+        let msg = COMFORT[Math.floor(Math.random() * COMFORT.length)];
+        if (p.lives) {
+          m.lives--;
+          const h = document.getElementById('hearts'); h.innerHTML = '❤️'.repeat(m.lives) + '🤍'.repeat(p.lives - m.lives); h.classList.add('lost');
+          msg = m.lives ? `Ein Leben weg – du hast noch ${m.lives}! ${msg}` : 'Keine Leben mehr – aber schau, so geht es:';
+        }
         fb.className = 'feedback soft'; fb.textContent = '🌱 ' + msg;
-        showHint(t.options[right].display || t.options[right].label);
+        showHint(right.display || right.label);
         const nb = document.getElementById('next'); nb.classList.remove('hidden'); nb.focus();
       }
+    };
+    $app.querySelectorAll('.opt').forEach(btn => btn.onclick = () => {
+      const o = t.options[Number(btn.dataset.k)];
+      const all = [...$app.querySelectorAll('.opt')], ri = t.options.findIndex(x => x.correct);
+      answer(o, () => { btn.classList.add('right'); all.forEach((b, k) => { if (k !== ri) b.classList.add('fade'); }); }, () => { btn.classList.add('wrong'); all[ri].classList.add('right'); });
     });
+    if (t.input === 'number') {
+      let val = '';
+      const disp = document.getElementById('numd');
+      const draw = () => { disp.textContent = val || ' '; disp.classList.toggle('empty', !val); };
+      const submit = () => {
+        if (!val || val === '−') { disp.classList.remove('shake'); void disp.offsetWidth; disp.classList.add('shake'); return; }
+        const o = t.options.find(x => x.label === val) || { label: val, correct: false, type: 'sonstiges' };
+        const right = t.options.find(x => x.correct);
+        answer(o, () => disp.classList.add('right'), () => { disp.classList.add('wrong'); disp.innerHTML = `<s>${esc(val)}</s> → ${esc(right.label)}`; });
+      };
+      $app.querySelectorAll('.numpad button').forEach(b => b.onclick = () => {
+        const d = b.dataset.d;
+        if (d === 'ok') return submit();
+        if (d === 'del') val = val.slice(0, -1);
+        else if (d === '−') val = val.startsWith('−') ? val.slice(1) : '−' + val;
+        else if (val.replace('−', '').length < 5) val += d;
+        draw();
+      });
+      draw();
+      runMission.keys && document.removeEventListener('keydown', runMission.keys);
+      runMission.keys = e => {
+        if (!document.getElementById('numd') || document.querySelector('.numpad button:disabled')) return;
+        if (/^\d$/.test(e.key)) { val += e.key; draw(); } else if (e.key === 'Backspace') { val = val.slice(0, -1); draw(); } else if (e.key === 'Enter') submit(); else if (e.key === '-') { val = val.startsWith('−') ? val.slice(1) : '−' + val; draw(); }
+      };
+      document.addEventListener('keydown', runMission.keys);
+    }
+    if (t.flash) {
+      const vis = $app.querySelector('.visual'), again = document.getElementById('flash');
+      setTimeout(() => { if (vis.isConnected && !document.querySelector('.opt:disabled, .numpad button:disabled')) { vis.classList.add('flashed'); again.classList.remove('hidden'); } }, 2200);
+      again.onclick = () => { m.tips++; vis.classList.remove('flashed'); again.classList.add('hidden'); setTimeout(() => { if (!document.querySelector('.opt:disabled')) { vis.classList.add('flashed'); } }, 1500); };
+    }
     if (t.visual.type === 'listen') setTimeout(() => speak(t.visual.say, .8), 250);
     else if (state.settings.autoread) sayAll();
   };
@@ -484,32 +600,45 @@ function runMission(p, moodB) {
     const isAct = !!p.activity;
     const wasFailed = !isAct && (state.progress[p.id]?.attempts || 0) > 0 && !((state.progress[p.id]?.bestStars || 0) >= 1);
     const before = new Set(PLANETS.filter(x => open(x.id)).map(x => x.id));
-    const stars = starsFor(m.correct, tasks.length);
+    const level = p.level || null;
+    const played = p.lives ? m.i : tasks.length; // im Stations-Quiz zählen nur die gespielten Aufgaben
+    const won = p.lives ? m.correct >= p.target && m.lives > 0 : null;
+    const stars = p.lives ? (won ? m.lives : 0) : starsFor(m.correct, tasks.length);
     const durationSec = Math.round((Date.now() - m.started) / 1000);
+    if (p.station) { // Rekord der Station (lokal)
+      const pf = getProfile(); pf.stations ||= {};
+      const old = pf.stations[p.st.id] || { best: 0, most: 0, attempts: 0 };
+      pf.stations[p.st.id] = { best: Math.max(old.best, stars), most: Math.max(old.most, m.correct), attempts: old.attempts + 1 };
+      saveProfile(pf);
+    }
     const prof = getProfile();
-    const payload = { planetId: p.id, correct: m.correct, total: tasks.length, errors: m.errors, tips: m.tips, moodBefore: m.moodB, durationSec, trophies: prof.trophies, stats: prof.stats };
+    const payload = { planetId: p.id, level, correct: m.correct, total: played, errors: m.errors, tips: m.tips, moodBefore: m.moodB, durationSec, trophies: prof.trophies, stats: prof.stats };
     if (state.mode === 'kid' && state.offline) {
-      if (!isAct) localResult(p.id, m.correct, tasks.length, stars);
+      if (!isAct) localResult(p.id, m.correct, tasks.length, stars, level);
       const ts = new Date().toISOString();
       offlineRecord(k => {
-        k.sessions.push({ ts, planetId: p.id, correct: m.correct, total: tasks.length, stars, moodBefore: m.moodB, moodAfter: null, tips: m.tips, durationSec });
+        k.sessions.push({ ts, planetId: p.id, level, correct: m.correct, total: played, stars, moodBefore: m.moodB, moodAfter: null, tips: m.tips, durationSec });
         for (const e of m.errors) k.errors.push({ ts, planetId: p.id, ...e });
       });
     } else if (state.mode === 'kid') {
       try { setKid(await apiCall('/api/kid/result', { method: 'POST', body: payload })); }
-      catch { toast('📡 Verbindung zur Basis gestört – Ergebnis nur auf diesem Gerät.'); localResult(p.id, m.correct, tasks.length, stars); }
+      catch { toast('📡 Verbindung zur Basis gestört – Ergebnis nur auf diesem Gerät.'); if (!isAct) localResult(p.id, m.correct, tasks.length, stars, level); }
     } else if (!isAct) {
-      localResult(p.id, m.correct, tasks.length, stars);
+      localResult(p.id, m.correct, tasks.length, stars, level);
       store.set('public_progress', state.progress);
     }
     const newly = PLANETS.filter(x => open(x.id) && !before.has(x.id));
-    renderResult(p, m.correct, tasks.length, stars, newly);
+    renderResult(p, m.correct, played, stars, newly, { won, lives: m.lives });
     if (state.settings.sound && stars >= 1) sound('win');
-    earn(isAct ? { words: 1, tipsUsed: m.tips } : { missions: 1, perfect: m.correct === tasks.length ? 1 : 0, tipsUsed: m.tips, brave: m.moodB && m.moodB <= 2 ? 1 : 0, comebacks: wasFailed && stars >= 1 ? 1 : 0 });
+    earn(p.station ? { stations: won ? 1 : 0, perfectStations: won && m.lives === p.lives ? 1 : 0, tipsUsed: m.tips }
+      : isAct ? { words: 1, tipsUsed: m.tips }
+      : { missions: 1, perfect: m.correct === tasks.length ? 1 : 0, tipsUsed: m.tips, brave: m.moodB && m.moodB <= 2 ? 1 : 0, comebacks: wasFailed && stars >= 1 ? 1 : 0, profi: level === 3 && stars >= 1 ? 1 : 0 });
   };
 }
-function localResult(id, correct, total, stars) {
+function localResult(id, correct, total, stars, level = 2) {
   const pr = state.progress[id] ||= { bestStars: 0, attempts: 0, correct: 0, total: 0 };
+  pr.lv = levelStars(pr); // ältere Spielstände übernehmen
+  pr.lv[level || 2] = Math.max(pr.lv[level || 2] || 0, stars);
   pr.attempts++; pr.correct += correct; pr.total += total; pr.bestStars = Math.max(pr.bestStars, stars); pr.lastPlayed = new Date().toISOString();
 }
 
@@ -551,27 +680,34 @@ function renderVisual(v, planetId) {
   }
 }
 
-function renderResult(p, correct, total, stars, newly) {
+function renderResult(p, correct, total, stars, newly, extra = {}) {
   const passed = stars >= 1;
-  const title = stars === 3 ? 'Perfekt! Alle richtig!' : passed ? (p.activity ? 'Super geübt!' : 'Mission geschafft!') : 'Gut geübt!';
+  const title = p.station ? (extra.won ? `${p.name} gemeistert!` : 'Keine Leben mehr!')
+    : stars === 3 ? 'Perfekt! Alle richtig!' : passed ? (p.activity ? 'Super geübt!' : p.level ? `Stufe ${p.level} geschafft!` : 'Mission geschafft!') : 'Gut geübt!';
+  const nextLv = !p.activity && p.level && p.level < 3 && passed ? PLANET_LEVELS[p.level] : null;
   $app.innerHTML = `
     <section class="panel result">
-      <div class="result-stars" aria-label="${stars} von 3 Sternen">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>
-      <h2>${title}</h2>
-      <p>Du hast <strong>${correct} von ${total}</strong> Aufgaben richtig gelöst.</p>
-      ${!passed && !p.activity ? `<p class="who-sub">Für den nächsten Planeten brauchst du ${PASS_CORRECT} richtige. Jeder Versuch macht dich stärker – probier es gleich nochmal! 💪</p>` : ''}
+      ${p.station ? `<div class="result-stars" aria-label="${extra.lives} Leben übrig">${extra.won ? '❤️'.repeat(extra.lives) + '🤍'.repeat(p.lives - extra.lives) : '🛰️'}</div>`
+        : `<div class="result-stars" aria-label="${stars} von 3 Sternen">${[1, 2, 3].map(n => `<span class="${n <= stars ? '' : 'off'}">⭐</span>`).join('')}</div>`}
+      <h2>${esc(title)}</h2>
+      ${p.station ? (extra.won ? `<p>Du hast ${p.target} Aufgaben geschafft und noch <strong>${extra.lives} ${extra.lives === 1 ? 'Leben' : 'Leben'}</strong> übrig!</p>` : `<p>Du hast <strong>${correct} richtige</strong> Antworten geschafft – du brauchst ${p.target}. Fehler gehören dazu, versuch es gleich nochmal! 💪</p>`)
+        : `<p>Du hast <strong>${correct} von ${total}</strong> Aufgaben richtig gelöst.</p>`}
+      ${p.level ? `<p class="who-sub">${PLANET_LEVELS[p.level - 1].medal} ${esc(p.name)} · Stufe ${p.level}: ${PLANET_LEVELS[p.level - 1].name}</p>` : ''}
+      ${nextLv ? `<div class="new-planet">${nextLv.medal} Neue Stufe offen: <strong>Stufe ${nextLv.n} – ${nextLv.name}</strong></div>` : ''}
+      ${!passed && !p.activity && !p.station ? `<p class="who-sub">Für den nächsten Planeten brauchst du ${PASS_CORRECT} richtige. Jeder Versuch macht dich stärker – probier es gleich nochmal! 💪</p>` : ''}
       ${newly.map(x => `<div class="new-planet">🎉 Neuer Planet entdeckt: <strong>${esc(x.name)}</strong></div>`).join('')}
       <h3 style="margin-bottom:0">Wie fühlst du dich jetzt?</h3>
       ${moodPicker('ma')}
       <div class="sheet-actions">
-        <button class="btn primary block" id="back">${p.activity ? '📚 Zurück zu den Lernwörtern' : '🪐 Zurück zur Galaxie'}</button>
-        <button class="btn block" id="again">🔁 Nochmal spielen</button>
+        ${nextLv ? `<button class="btn primary block" id="next-level">${nextLv.medal} Weiter mit Stufe ${nextLv.n}</button>` : ''}
+        <button class="btn ${nextLv ? '' : 'primary'} block" id="back">${p.station ? '🪐 Zurück zur Galaxie' : p.activity ? '📚 Zurück zu den Lernwörtern' : '🪐 Zurück zur Galaxie'}</button>
+        <button class="btn block" id="again">🔁 ${p.station ? 'Quiz nochmal' : 'Nochmal spielen'}</button>
         ${state.mode === 'kid' && state.offline ? '<button class="btn block" id="send-rep">📤 Bericht an meine Coachin</button>' : ''}
       </div>
       ${state.mode === 'public' && state.info?.contactUrl && !passed ? `<p class="who-sub" style="margin-top:1.4em">Für Eltern: Wenn Rechnen oder Lesen oft schwerfällt, hilft persönliche Begleitung. <a href="${esc(state.info.contactUrl)}" target="_blank" rel="noopener">${esc(state.info.practiceName || 'Beratung')} →</a></p>` : ''}
     </section>`;
   if (passed) confetti(stars * 12);
-  speak(`${title} Du hast ${correct} von ${total} richtig.`);
+  speak(p.station ? title : `${title} Du hast ${correct} von ${total} richtig.`);
   let moodSent = false;
   $app.querySelectorAll('#ma .mood').forEach(b => b.onclick = () => {
     $app.querySelectorAll('#ma .mood').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -586,6 +722,7 @@ function renderResult(p, correct, total, stars, newly) {
     if (newly[0] && newly[0].galaxy === p.galaxy) setTimeout(() => { placeRocket(newly[0].id, true); store.set('rocket_' + p.galaxy + (state.mode === 'kid' ? '_' + state.kid.code : ''), newly[0].id); $app.querySelector(`.pl[data-id="${newly[0].id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 700);
   };
   document.getElementById('again').onclick = () => (p.activity ? runMission({ ...p, tasks: p.regen() }, null) : moodBefore(p));
+  document.getElementById('next-level')?.addEventListener('click', () => moodBefore({ ...p, level: p.level + 1 }));
   document.getElementById('send-rep')?.addEventListener('click', showReport);
 }
 

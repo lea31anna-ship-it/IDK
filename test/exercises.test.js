@@ -56,3 +56,29 @@ test('Freischalt-Logik', () => {
   assert.ok(isUnlocked('mal8', { mode: 'kid', unlocked: ['mal7'], progress: { mal7: { bestStars: 2, attempts: 1 } }, autoAdvance: true }));
   assert.equal(starsFor(10), 3); assert.equal(starsFor(9), 2); assert.equal(starsFor(7), 1); assert.equal(starsFor(6), 0);
 });
+
+test('Alle Planeten in allen 3 Stufen', async () => {
+  const { PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, GALAXIES } = await import('../public/js/curriculum.js');
+  const { stationQuiz } = await import('../public/js/exercises.js');
+  for (const p of PLANETS) for (const L of PLANET_LEVELS) for (let run = 0; run < 10; run++) {
+    const tasks = generateMission(p.id, null, L.n);
+    assert.equal(tasks.length, L.tasks, `${p.id} Stufe ${L.n}`);
+    for (const t of tasks) {
+      assert.equal(t.options.filter(o => o.correct).length, 1);
+      if (L.n === 1 && !['dasdass', 'slaute', 'grossklein2'].includes(p.id)) assert.equal(t.options.length, 3, `${p.id} Stufe 1: ${t.options.length}`);
+      if (t.input === 'number') assert.match(t.options.find(o => o.correct).label, /^−?\d+$/);
+    }
+    if (L.n === 3 && ['plus10', 'mal7', 'negativ', 'prozent'].includes(p.id)) assert.ok(tasks.every(t => t.input === 'number'), p.id + ' Profi tippt');
+  }
+  assert.ok(generateMission('mengen', null, 1).every(t => Number(t.options.find(o => o.correct).label) <= 5), 'Stufe 1 kleinere Mengen');
+  assert.ok(generateMission('mengen', null, 3).every(t => t.flash), 'Blitzblick');
+  // Stufen-Logik inkl. alter Spielstände
+  assert.deepEqual(levelStars({ bestStars: 2 }), { 1: 2, 2: 2, 3: 0 });
+  assert.ok(levelOpen({ bestStars: 2 }, 3) && !levelOpen({ lv: { 1: 1, 2: 0, 3: 0 } }, 3));
+  assert.equal(nextLevel({ lv: { 1: 3, 2: 0 } }), 2);
+  // Stationen
+  for (const g of GALAXIES) for (const st of stationsOf(g.id)) {
+    const q = stationQuiz(st.planets);
+    assert.ok(q.length >= 30 && q.every(t => st.planets.includes(t.src)), st.id);
+  }
+});

@@ -131,6 +131,35 @@ export function isUnlocked(planetId, { mode, progress = {}, unlocked = [], autoA
   return autoAdvance && prevDone && isUnlocked(prev.id, { mode, progress, unlocked, autoAdvance });
 }
 
+// ---------- Stufen pro Planet (wie Lektionen) ----------
+export const PLANET_LEVELS = [
+  { n: 1, name: 'Entdecker', medal: '🥉', desc: '3 Antworten zur Auswahl – zum Reinkommen', tasks: 10 },
+  { n: 2, name: 'Pilot', medal: '🥈', desc: '4 Antworten zur Auswahl', tasks: 10 },
+  { n: 3, name: 'Profi', medal: '🥇', desc: 'Zahlen selbst eintippen, 12 Aufgaben', tasks: 12 },
+];
+/** Sterne je Stufe. Ältere Spielstände (vor den Stufen) entsprechen Stufe 1 und 2. */
+export function levelStars(pr) {
+  if (!pr) return { 1: 0, 2: 0, 3: 0 };
+  if (pr.lv) return { 1: pr.lv[1] || 0, 2: pr.lv[2] || 0, 3: pr.lv[3] || 0 };
+  return { 1: pr.bestStars || 0, 2: pr.bestStars || 0, 3: 0 };
+}
+export const levelOpen = (pr, n) => n === 1 || levelStars(pr)[n - 1] >= 1;
+export const nextLevel = pr => { const s = levelStars(pr); return s[1] < 1 ? 1 : s[2] < 1 ? 2 : s[3] < 1 ? 3 : 3; };
+
+// ---------- Raumstationen: Quiz mit 3 Leben über mehrere Planeten ----------
+export const STATION_EVERY = 4;
+export const STATION_TARGET = 12; // so viele richtige Antworten, bevor die Leben ausgehen
+/** Stationen einer Galaxie: nach je 4 Planeten eine Station, am Ende das Galaxie-Tor (alle Planeten). */
+export function stationsOf(galaxyId) {
+  const list = planetsOf(galaxyId), out = [];
+  for (let i = STATION_EVERY; i < list.length; i += STATION_EVERY) {
+    out.push({ id: `st-${galaxyId}-${out.length + 1}`, galaxy: galaxyId, after: i - 1, planets: list.slice(i - STATION_EVERY, i).map(p => p.id), name: `Raumstation ${['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'][out.length] || out.length + 1}`, final: false });
+  }
+  out.push({ id: `st-${galaxyId}-tor`, galaxy: galaxyId, after: list.length - 1, planets: list.map(p => p.id), name: 'Galaxie-Tor', final: true });
+  return out;
+}
+export const stationOpen = (st, progress) => st.planets.every(id => (progress[id]?.bestStars || 0) >= 1);
+
 // Fehler-Radar: Fehlertypen mit Förderhinweisen für die Coachin
 export const ERROR_TYPES = {
   zaehlfehler: { label: 'Zählfehler (±1)', area: 'zahlen', tip: 'Zählt vermutlich einzeln ab und verzählt sich. Strukturierte Mengen (Fünfer-/Zehnerfeld, „Kraft der Fünf“) nutzen und Abzählen schrittweise ablösen.' },

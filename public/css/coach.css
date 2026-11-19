@@ -254,3 +254,5 @@
 .lv-coach .emoji-pick button.used { opacity: .35; }
 .lv-coach .emoji-pick button.used.sel { opacity: 1; }
 .lv-coach .emoji-pick button:hover { border-color: var(--border); }
+.lv-coach .medals { white-space: nowrap; font-size: .95em; }
+.lv-coach .medals .off { filter: grayscale(1); opacity: .3; }

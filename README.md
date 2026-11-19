@@ -22,6 +22,15 @@ Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
 | **VS 3–4** | Rechen-Nebel (9): Plus und Minus bis 100 und 1000, Mal mit Zehnern, halbschriftlich, Division mit Rest, Größen, Sachaufgaben | Wörter-Nebel (7): Großschreibung, Mehrzahl, Doppelmitlaute, ie/i, Dehnungs-h, Trennen, Leseverständnis |
 | **Unterstufe** | Mathe-Sternbild (10): negative Zahlen, Punkt vor Strich, Teilbarkeit, Potenzen, Brüche, Dezimalzahlen, Prozent, Gleichungen | Sprach-Sternbild (6): Wortarten, Präteritum, s/ss/ß, Nominalisierung, das/dass, Komma |
 
+**🥉🥈🥇 Drei Stufen pro Planet** (wie Lektionen):
+- **Stufe 1, Entdecker:** 3 Antworten zur Auswahl, bei einigen Mathe-Planeten kleinere Zahlen (z. B. Mengen bis 5, Einmaleins bis ×5)
+- **Stufe 2, Pilot:** 4 Antworten
+- **Stufe 3, Profi:** Zahlen selbst eintippen (12 Aufgaben); beim Punkte-Planet „Blitzblick“, bei dem die Punkte nach 2 Sekunden verschwinden
+
+Jede Stufe schaltet die nächste frei. Für den nächsten Planeten reicht Stufe 1. Auch beim Eintippen erkennt das Fehler-Radar typische Fehler, wenn die getippte Zahl einem bekannten Fehlermuster entspricht.
+
+**🛰️ Raumstationen:** Nach je 4 Planeten gibt es eine Raumstation, am Ende jeder Galaxie das **Galaxie-Tor**. Dort wartet ein gemischtes Quiz über alle Planeten davor, mit **3 Leben**: Wer 12 richtige schafft, bevor die Leben weg sind, gewinnt. Stationen sind ein freiwilliger Bonus und blockieren nichts. Fehler werden im Fehler-Radar dem richtigen Planeten zugeordnet.
+
 **💡 Astronautin Nova:** Jede Aufgabe hat oben rechts eine Glühbirne. Ein Tipp darauf lässt die Astronautin erscheinen; sie erklärt die Aufgabe und liest den Hinweis vor. Nach einem Fehler kommt sie von selbst und zeigt die Lösung. Bleibt ein Kind 25 Sekunden hängen, wackelt die Glühbirne.
 
 **☰ Menü-Leiste:** Planeten · Wörter · Spiele · Pokale · Mehr

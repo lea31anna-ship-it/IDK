@@ -10,7 +10,7 @@ export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 
   'nomen', 'mehrzahl', 'doppel', 'ie', 'dehnung', 'trennen', 'saetze',
   'negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung',
   'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma',
-  'lernwoerter'];
+  'lernwoerter', 'station'];
 // Reihenfolge ist Teil des Codes: NUR HINTEN ANHÄNGEN (max. 128)!
 export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟',
   // Tiere
@@ -121,8 +121,8 @@ export async function encodeReport(kid) {
   const min = ts => Math.round(Date.parse(ts) / 60000);
   const obj = {
     v: 1, id: kid.id, n: kid.name, c: kid.code,
-    p: Object.fromEntries(Object.entries(kid.progress || {}).map(([k, p]) => [idx(k), [p.bestStars, p.attempts, p.correct, p.total, p.lastPlayed ? min(p.lastPlayed) : 0]])),
-    s: (kid.sessions || []).slice(-80).map(s => [min(s.ts), idx(s.planetId), s.correct, s.total, s.moodBefore || 0, s.moodAfter || 0, s.tips || 0, s.durationSec || 0]),
+    p: Object.fromEntries(Object.entries(kid.progress || {}).filter(([k]) => idx(k) >= 0).map(([k, p]) => [idx(k), [p.bestStars, p.attempts, p.correct, p.total, p.lastPlayed ? min(p.lastPlayed) : 0, ...(p.lv ? [p.lv[1] || 0, p.lv[2] || 0, p.lv[3] || 0] : [])]])),
+    s: (kid.sessions || []).slice(-80).map(s => [min(s.ts), idx(s.planetId), s.correct, s.total, s.moodBefore || 0, s.moodAfter || 0, s.tips || 0, s.durationSec || 0, s.level || 0]),
     e: (kid.errors || []).slice(-120).map(e => [min(e.ts), idx(e.planetId), e.type, e.task, e.given, e.expected]),
     av: kid.look?.avatar || '', t: kid.trophies || {}, st: kid.stats ? { ...kid.stats, days: (kid.stats.days || []).slice(-60) } : null,
   };
@@ -140,8 +140,8 @@ export async function decodeReport(text) {
   const iso = t => new Date(t * 60000).toISOString();
   return {
     id: o.id, name: o.n, code: o.c,
-    progress: Object.fromEntries(Object.entries(o.p || {}).filter(([i]) => pid(i)).map(([i, a]) => [pid(i), { bestStars: a[0], attempts: a[1], correct: a[2], total: a[3], lastPlayed: a[4] ? iso(a[4]) : null }])),
-    sessions: (o.s || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), correct: a[2], total: a[3], stars: a[3] ? (a[2] / a[3] >= 1 ? 3 : a[2] / a[3] >= .9 ? 2 : a[2] / a[3] >= .7 ? 1 : 0) : 0, moodBefore: a[4] || null, moodAfter: a[5] || null, tips: a[6], durationSec: a[7] })),
+    progress: Object.fromEntries(Object.entries(o.p || {}).filter(([i]) => pid(i)).map(([i, a]) => [pid(i), { bestStars: a[0], attempts: a[1], correct: a[2], total: a[3], lastPlayed: a[4] ? iso(a[4]) : null, ...(a.length > 5 ? { lv: { 1: a[5], 2: a[6], 3: a[7] } } : {}) }])),
+    sessions: (o.s || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), correct: a[2], total: a[3], stars: a[3] ? (a[2] / a[3] >= 1 ? 3 : a[2] / a[3] >= .9 ? 2 : a[2] / a[3] >= .7 ? 1 : 0) : 0, moodBefore: a[4] || null, moodAfter: a[5] || null, tips: a[6], durationSec: a[7], level: a[8] || null })),
     trophies: o.t || {}, stats: o.st || null, avatar: AVATARS.includes(o.av) ? o.av : null,
     errors: (o.e || []).filter(a => pid(a[1])).map(a => ({ ts: iso(a[0]), planetId: pid(a[1]), type: String(a[2]), task: String(a[3]).slice(0, 60), given: String(a[4]).slice(0, 40), expected: String(a[5]).slice(0, 40) })),
   };

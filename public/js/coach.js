@@ -1,4 +1,4 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked } from './curriculum.js';
+import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
@@ -306,13 +306,13 @@ function tabOverview(el, k) {
     })()}
     <div class="card"><h2>Letzte Missionen</h2>
       ${sess.length ? `<table class="resp"><thead><tr><th>Wann</th><th>Planet</th><th>Ergebnis</th><th>Sterne</th><th>Stimmung vorher → nachher</th><th>Tipps</th><th>Dauer</th></tr></thead><tbody>
-      ${sess.slice(-15).reverse().map(s => `<tr><td>${fmtDateTime(s.ts)}</td><td>${esc(pName(s.planetId))}</td><td>${s.correct}/${s.total}</td><td class="stars">${starsHtml(s.stars)}</td><td>${moodE(s.moodBefore)} → ${moodE(s.moodAfter)}</td><td>${s.tips}</td><td>${Math.round((s.durationSec || 0) / 60 * 10) / 10} min</td></tr>`).join('')}
+      ${sess.slice(-15).reverse().map(s => `<tr><td>${fmtDateTime(s.ts)}</td><td>${esc(pName(s.planetId))}${s.level ? ` <span class="tag">${PLANET_LEVELS[s.level - 1].medal} Stufe ${s.level}</span>` : ''}</td><td>${s.correct}/${s.total}</td><td class="stars">${starsHtml(s.stars)}</td><td>${moodE(s.moodBefore)} → ${moodE(s.moodAfter)}</td><td>${s.tips}</td><td>${Math.round((s.durationSec || 0) / 60 * 10) / 10} min</td></tr>`).join('')}
       </tbody></table>` : '<p class="muted">Noch keine Missionen gespielt.</p>'}
     </div>
     <div class="card"><h2>Fortschritt je Planet</h2>
       ${GALAXIES.map(g => `<h3 style="font-size:1em">${g.icon} ${esc(g.name)}</h3><div class="planet-grid">${planetsOf(g.id).map(p => {
         const pr = k.progress[p.id]; const op = isUnlocked(p.id, { mode: 'kid', ...k });
-        return `<div class="pcheck" style="cursor:default"><span>${op ? '🔓' : '🔒'}</span><span><div class="pn">${esc(p.name)}</div><div class="pt">${pr ? `${pr.attempts}× gespielt · ${Math.round(100 * pr.correct / pr.total)} % richtig` : 'noch nicht gespielt'}</div></span><span class="stars">${pr ? starsHtml(pr.bestStars) : ''}</span></div>`;
+        return `<div class="pcheck" style="cursor:default"><span>${op ? '🔓' : '🔒'}</span><span><div class="pn">${esc(p.name)}</div><div class="pt">${pr ? `${pr.attempts}× gespielt · ${Math.round(100 * pr.correct / pr.total)} % richtig` : 'noch nicht gespielt'}</div></span><span class="medals" title="Stufen 1–3">${pr ? PLANET_LEVELS.map(L => `<span class="${levelStars(pr)[L.n] >= 1 ? '' : 'off'}">${L.medal}</span>`).join('') : ''}</span></div>`;
       }).join('')}</div>`).join('')}
     </div>
     <div class="card no-print"><h2>Verwaltung</h2><div class="row">

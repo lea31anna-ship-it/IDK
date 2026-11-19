@@ -49,3 +49,13 @@ test('Lernwörter und Belohnung reisen im Link mit', async () => {
   assert.ok(('#' + kidHash(code, 'Hallo', x)).length < 600, 'Link bleibt kurz');
   assert.equal(parseKidHash('#' + kidHash(code)).extra, null);
 });
+
+test('Bericht überträgt Stufen und Stations-Sessions', async () => {
+  const kid = { id: 1, name: 'Ida', code: 'X', progress: { mal3: { bestStars: 2, attempts: 3, correct: 25, total: 32, lv: { 1: 3, 2: 2, 3: 0 } } },
+    sessions: [{ ts: '2026-11-19T10:00:00.000Z', planetId: 'mal3', level: 2, correct: 9, total: 10, tips: 0, durationSec: 60 }, { ts: '2026-11-19T11:00:00.000Z', planetId: 'station', correct: 12, total: 13, tips: 0, durationSec: 90 }],
+    errors: [{ ts: '2026-11-19T11:00:00.000Z', planetId: 'plus10', type: 'zaehlfehler', task: '3 + 4', given: '8', expected: '7' }] };
+  const r = await decodeReport(await encodeReport(kid));
+  assert.deepEqual(r.progress.mal3.lv, { 1: 3, 2: 2, 3: 0 });
+  assert.equal(r.sessions[0].level, 2); assert.equal(r.sessions[1].planetId, 'station');
+  assert.equal(r.errors[0].planetId, 'plus10');
+});
