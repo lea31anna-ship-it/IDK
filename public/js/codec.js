@@ -5,7 +5,11 @@
 
 // Feste Reihenfolge für die Bit-Kodierung. NUR HINTEN ANHÄNGEN, nie umsortieren!
 export const CODE_ORDER = ['mengen', 'zerlegen', 'plus10', 'minus10', 'plus20', 'minus20', 'mal1', 'mal2', 'mal3', 'mal4', 'mal5', 'mal6', 'mal7', 'mal8', 'mal9', 'mal10', 'geteilt', 'malmix',
-  'anlaut', 'vokale', 'silben', 'reime', 'bdpq', 'lesen', 'schreiben'];
+  'anlaut', 'vokale', 'silben', 'reime', 'bdpq', 'lesen', 'schreiben',
+  'plus100', 'minus100', 'malzehner', 'halbschriftlich', 'divrest', 'plus1000', 'minus1000', 'groessen', 'sachaufgaben',
+  'nomen', 'mehrzahl', 'doppel', 'ie', 'dehnung', 'trennen', 'saetze',
+  'negativ', 'vorrang', 'teilbar', 'potenz', 'brucherkennen', 'bruchkuerzen', 'bruchplus', 'dezimal', 'prozent', 'gleichung',
+  'wortarten', 'zeitformen', 'slaute', 'grossklein2', 'dasdass', 'komma'];
 export const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟'];
 const B32 = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // ohne 0/O und 1/I/L-Verwechslung
 
@@ -18,30 +22,34 @@ export function cleanName(name) {
 }
 export const prettyName = n => n.charAt(0) + n.slice(1).toLowerCase();
 
-// Bits: [8 Prüfsumme][16 ID][5 Avatar][1 auto][32 Planeten] = 62 Bit -> 13 Zeichen
+// v1 (13 Zeichen): [8 Prüfsumme][16 ID][5 Avatar][1 auto][32 Planeten]            = 62 Bit
+// v2 (19 Zeichen): [8 Prüfsumme][16 ID][5 Avatar][1 auto][64 Planeten]  + 1 Füllbit = 95 Bit
+const FMT = { 13: { mb: 32n, groups: [4, 4, 5] }, 19: { mb: 64n, groups: [4, 5, 5, 5] } };
+const group = (c, gs) => { const out = []; let i = 0; for (const g of gs) { out.push(c.slice(i, i + g)); i += g; } return out.join('-'); };
 export function encodeKidCode({ name, id, avatar = 0, autoAdvance = true, unlocked = [] }) {
   const nm = cleanName(name);
-  let mask = 0n;
-  CODE_ORDER.forEach((pid, i) => { if (unlocked.includes(pid)) mask |= 1n << BigInt(i); });
-  let body = (BigInt(id & 0xffff) << 38n) | (BigInt(avatar & 31) << 33n) | ((autoAdvance ? 1n : 0n) << 32n) | mask;
-  const n = (check8(body, nm) << 54n) | body;
-  const c = toB32(n, 13);
-  return `${nm}-${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8)}`;
+  let mask = 0n, maxIdx = -1;
+  CODE_ORDER.forEach((pid, i) => { if (unlocked.includes(pid)) { mask |= 1n << BigInt(i); maxIdx = i; } });
+  const len = maxIdx < 32 ? 13 : 19, { mb, groups } = FMT[len];
+  const body = (BigInt(id & 0xffff) << (mb + 6n)) | (BigInt(avatar & 31) << (mb + 1n)) | ((autoAdvance ? 1n : 0n) << mb) | mask;
+  const n = (check8(body, nm) << (mb + 22n)) | body;
+  return `${nm}-${group(toB32(n, len), groups)}`;
 }
 export function decodeKidCode(str) {
   const s = String(str || '').toUpperCase().replace(/\s+/g, '');
   const m = /^([A-Z]+)-?([0-9A-Z-]+)$/.exec(s);
   if (!m) return null;
   const raw = m[2].replace(/-/g, '');
-  if (raw.length !== 13) return null;
+  const f = FMT[raw.length]; if (!f) return null;
+  const { mb } = f;
   const n = fromB32(raw); if (n === null) return null;
-  const body = n & ((1n << 54n) - 1n);
-  if ((n >> 54n) !== check8(body, m[1])) return null;
-  const mask = body & 0xffffffffn;
+  const body = n & ((1n << (mb + 22n)) - 1n);
+  if ((n >> (mb + 22n)) !== check8(body, m[1])) return null;
+  const mask = body & ((1n << mb) - 1n);
   return {
-    name: prettyName(m[1]), id: Number((body >> 38n) & 0xffffn), avatar: AVATARS[Number((body >> 33n) & 31n)] || AVATARS[0],
-    autoAdvance: ((body >> 32n) & 1n) === 1n, unlocked: CODE_ORDER.filter((_, i) => (mask >> BigInt(i)) & 1n),
-    code: `${m[1]}-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`,
+    name: prettyName(m[1]), id: Number((body >> (mb + 6n)) & 0xffffn), avatar: AVATARS[Number((body >> (mb + 1n)) & 31n)] || AVATARS[0],
+    autoAdvance: ((body >> mb) & 1n) === 1n, unlocked: CODE_ORDER.filter((_, i) => (mask >> BigInt(i)) & 1n),
+    code: `${m[1]}-${group(raw, f.groups)}`,
   };
 }
 
@@ -55,7 +63,7 @@ export function kidHash(code, message) {
   return h;
 }
 export function parseKidHash(hash) {
-  const m = /^#?k-([a-z]+)-([0-9a-z]{13})(?:-m([0-9a-z]+))?$/i.exec(hash || '');
+  const m = /^#?k-([a-z]+)-([0-9a-z]{19}|[0-9a-z]{13})(?:-m([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
   const kid = decodeKidCode(`${m[1]}-${m[2]}`);
   if (!kid) return null;

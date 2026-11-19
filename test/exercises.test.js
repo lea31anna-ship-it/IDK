@@ -9,10 +9,12 @@ test('jeder Planet erzeugt gültige Missionen', () => {
       const tasks = generateMission(p.id);
       assert.equal(tasks.length, 10, p.id);
       for (const t of tasks) {
-        assert.equal(t.options.length, 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
+        assert.ok(t.options.length >= 2 && t.options.length <= 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
+        if (!['dasdass', 'slaute', 'wortarten', 'grossklein2'].includes(p.id)) assert.equal(t.options.length, 4, `${p.id}: ${t.label} hat ${t.options.length} Optionen`);
         assert.equal(t.options.filter(o => o.correct).length, 1, `${p.id}: genau eine richtige Antwort`);
         const labels = t.options.map(o => o.display ?? o.label);
-        assert.equal(new Set(labels).size, 4, `${p.id}: doppelte Optionen ${labels}`);
+        assert.equal(new Set(labels).size, labels.length, `${p.id}: doppelte Optionen ${labels}`);
+        assert.ok(t.hint?.text, `${p.id}: Hinweis fehlt`);
         for (const o of t.options) if (!o.correct) assert.ok(ERROR_TYPES[o.type], `${p.id}: Fehlertyp ${o.type}`);
         assert.ok(t.prompt && t.label);
       }
@@ -30,6 +32,18 @@ test('Mathe-Antworten stimmen', () => {
       const [a, b] = t.label.split(' − ').map(Number);
       assert.equal(Number(t.options.find(o => o.correct).label), a - b);
     }
+  }
+});
+
+test('Mathe-Antworten der höheren Stufen stimmen', () => {
+  const num = s => Number(String(s).replace('−', '-').replace(',', '.'));
+  for (let i = 0; i < 200; i++) {
+    for (const t of generateMission('plus1000')) { const [a, b] = t.label.split(' + ').map(Number); assert.equal(num(t.options.find(o => o.correct).label), a + b); }
+    for (const t of generateMission('halbschriftlich')) { const [a, b] = t.label.split(' × ').map(Number); assert.equal(num(t.options.find(o => o.correct).label), a * b); }
+    for (const t of generateMission('divrest')) { const [n, d] = t.label.split(' : ').map(Number); assert.equal(t.options.find(o => o.correct).label, `${Math.floor(n / d)} R ${n % d}`); }
+    for (const t of generateMission('vorrang')) { const expr = t.label.replace(/·/g, '*').replace(/−/g, '-'); assert.equal(num(t.options.find(o => o.correct).label), eval(expr)); }
+    for (const t of generateMission('negativ')) { const expr = t.label.replace(/−/g, '-'); assert.equal(num(t.options.find(o => o.correct).label), eval(expr.replace(/--/g, '+'))); }
+    for (const t of generateMission('dezimal')) if (t.label.includes('+')) { const [a, b] = t.label.split(' + ').map(num); assert.ok(Math.abs(num(t.options.find(o => o.correct).label) - (a + b)) < 1e-9); }
   }
 });
 

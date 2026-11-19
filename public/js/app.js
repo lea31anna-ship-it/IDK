@@ -1,6 +1,7 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
+import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport } from './codec.js';
+import { pick } from './util.js';
 
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
@@ -126,8 +127,8 @@ function renderStart() {
   const i = state.info || {};
   $app.innerHTML = `
     <section class="start">
-      <div class="logo-rocket" aria-hidden="true">🚀</div>
-      <h1 class="logo">Sternenhüpfer</h1>
+      <div class="logo-rocket" aria-hidden="true">🪐</div>
+      <h1 class="logo">${APP_NAME}</h1>
       <p class="tagline">Hüpf von Planet zu Planet und werde ein Rechen- und Lese-Profi!</p>
       ${i.welcome ? `<p class="tagline">${esc(i.welcome)}</p>` : ''}
       <div class="choices panel">
@@ -144,12 +145,14 @@ function renderStart() {
       ${i.practiceName || i.coachName ? `
       <div class="parents-box panel">
         <h3>👋 Für Eltern</h3>
-        <p style="margin:0">Sternenhüpfer ist ein Angebot von <strong>${esc(i.practiceName || i.coachName)}</strong>${i.practiceName && i.coachName ? ` (${esc(i.coachName)})` : ''} – Lerncoaching bei Legasthenie und Dyskalkulie.
+        <p style="margin:0">${APP_NAME} ist ein Angebot von <strong>${esc(i.practiceName || i.coachName)}</strong>${i.practiceName && i.coachName ? ` (${esc(i.coachName)})` : ''} – Lerncoaching bei Legasthenie und Dyskalkulie.
         Kein Zeitdruck, keine Werbung, keine Daten in der freien Version.</p>
         ${i.contactUrl ? `<p style="margin:.6em 0 0"><a href="${esc(i.contactUrl)}" target="_blank" rel="noopener">Kontakt & Beratung →</a></p>` : ''}
       </div>` : ''}
-      ${state.server ? '<a class="coach-link" href="/coach">Bereich für Coaches</a>' : ''}
+      <button class="btn coach-login" id="coach-login">🔐 Coach-Login</button>
+      <p class="presented">${APP_NAME} · Lerncoaching bei Legasthenie & Dyskalkulie</p>
     </section>`;
+  document.getElementById('coach-login').onclick = coachLogin;
   document.getElementById('go-public').onclick = () => { state.mode = 'public'; state.progress = store.get('public_progress', {}); renderMap(); };
   document.getElementById('open-settings').onclick = openSettings;
   const sc = document.getElementById('show-code');
@@ -205,7 +208,7 @@ function offlineRecord(fn) {
 async function showReport() {
   const k = offlineKids()[state.kid.id]; if (!k) return;
   const code = await encodeReport(k);
-  const text = `🚀 Sternenhüpfer-Bericht von ${k.name}\n${code}`;
+  const text = `🪐 ${APP_NAME}-Bericht von ${k.name}\n${code}`;
   const sheet = openModal(`
     <h2>📤 Bericht an deine Coachin</h2>
     <p>Kopiere diesen Text und schicke ihn deiner Coachin – zum Beispiel per WhatsApp oder E-Mail. Dann sieht sie, was du geschafft hast!</p>
@@ -253,8 +256,11 @@ function renderMap() {
       ${kid && state.offline ? '<button class="icon-btn" id="report" aria-label="Bericht an Coachin senden" title="Bericht an Coachin senden">📤</button>' : ''}
       <button class="icon-btn" id="settings" aria-label="Einstellungen">⚙️</button>
     </header>
+    <nav class="levels" aria-label="Stufe">
+      ${LEVELS.map(l => `<button class="level" data-l="${l.id}" aria-pressed="${l.id === g.level}" title="${esc(l.sub)}">${l.icon} ${esc(l.name)}</button>`).join('')}
+    </nav>
     <nav class="tabs" role="tablist">
-      ${GALAXIES.map(x => `<button class="tab" role="tab" data-g="${x.id}" aria-selected="${x.id === g.id}">${x.icon} ${esc(x.name.replace('-Galaxie', ''))}</button>`).join('')}
+      ${GALAXIES.filter(x => x.level === g.level).map(x => `<button class="tab" role="tab" data-g="${x.id}" aria-selected="${x.id === g.id}">${x.icon} ${esc(x.short)}<small>${esc(x.name)}</small></button>`).join('')}
     </nav>
     <div class="map" id="map" style="height:${height}px">
       <svg class="path" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true"><path d="${pathD}"/></svg>
@@ -278,6 +284,10 @@ function renderMap() {
   document.getElementById('settings').onclick = openSettings;
   document.getElementById('report')?.addEventListener('click', showReport);
   $app.querySelectorAll('.tab').forEach(b => b.onclick = () => { state.galaxy = b.dataset.g; store.set('galaxy', state.galaxy); renderMap(); });
+  $app.querySelectorAll('.level').forEach(b => b.onclick = () => {
+    const same = GALAXIES.filter(x => x.level === b.dataset.l);
+    state.galaxy = (same.find(x => x.short === g.short) || same[0]).id; store.set('galaxy', state.galaxy); renderMap();
+  });
 
   // Rakete parken
   const rocketAt = store.get('rocket_' + g.id + (kid ? '_' + kid.code : ''), null);
@@ -376,16 +386,16 @@ function runMission(p, moodB) {
         <span class="fuel-count">${m.i + 1}/${tasks.length}</span>
       </div>
       <section class="panel task">
+        <button class="hint-bulb" id="tip" aria-label="Hinweis vom Astronauten" title="Ich weiß nicht weiter">💡</button>
         <div class="prompt-row">
           <p class="prompt ${isMath && ['big', 'house'].includes(t.visual.type) ? 'math' : ''}">${esc(t.prompt)}</p>
           <button class="icon-btn" id="say" aria-label="Vorlesen">🔊</button>
         </div>
         <div class="visual">${renderVisual(t.visual, p.id)}</div>
-        <div class="options">${t.options.map((o, k) => `<button class="opt ${o.big ? 'big' : ''}" data-k="${k}">${o.emoji ? `<span class="opt-emoji">${o.emoji}</span>` : ''}<span>${o.display ? esc(o.display) : (p.id === 'lesen' || p.id === 'silben' || p.id === 'bdpq' || p.id === 'schreiben' ? esc(o.label) : wordHtml(o.label))}</span></button>`).join('')}</div>
+        <div class="options ${t.options.some(o => !o.display && o.label.length > 14) ? 'long' : ''} ${t.options.length === 2 ? 'two' : ''}">${t.options.map((o, k) => `<button class="opt ${o.big ? 'big' : ''}" data-k="${k}">${o.emoji ? `<span class="opt-emoji">${o.emoji}</span>` : ''}<span>${o.display ? esc(o.display) : (p.id === 'lesen' || p.id === 'silben' || p.id === 'bdpq' || p.id === 'schreiben' ? esc(o.label) : wordHtml(o.label))}</span></button>`).join('')}</div>
         <div class="feedback" id="fb" aria-live="assertive"></div>
         <div id="hint"></div>
         <div class="mission-bottom">
-          <button class="btn" id="tip">💡 Tipp</button>
           <button class="btn primary hidden" id="next">Weiter ➜</button>
         </div>
       </section>`;
@@ -398,23 +408,44 @@ function runMission(p, moodB) {
       s.querySelector('#stay').onclick = () => closeModal();
       s.querySelector('#leave').onclick = () => { m.active = false; closeModal(); window.speechSynthesis?.cancel(); renderMap(); };
     };
+    // Astronaut Nova erklärt: auf Knopfdruck (💡) oder nach einem Fehler
     let tipShown = false;
-    const showHint = () => {
-      if (tipShown) return; tipShown = true;
-      const h = t.hint || {};
-      document.getElementById('hint').innerHTML = `<div class="hint-box"><p>${esc(h.text || '')}</p>${h.visual ? renderVisual(h.visual) : ''}${h.syllables ? `<div class="syl-chips">${h.syllables.map(s => `<span class="syl-chip">${esc(s)}</span>`).join('')}</div>` : ''}</div>`;
-      if (h.saysyll) speak(h.saysyll.join(' … '), .6);
-      else if (h.sayslow) speak(h.sayslow, .45);
+    const sayHint = h => {
+      if (h.saysyll) speak(h.text + ' ' + h.saysyll.join(' … '), .75);
+      else if (h.sayslow) speak(`${h.text} Hör genau: ${h.sayslow.split('').join(' ')} … ${h.sayslow}`, .75);
       else speak(h.text);
     };
-    document.getElementById('tip').onclick = () => { if (!tipShown) m.tips++; showHint(); document.getElementById('tip').disabled = true; };
+    const showHint = (after = null) => {
+      const h = t.hint || {};
+      const box = document.getElementById('hint');
+      const intro = after ? `Schau mal, so geht's: Die richtige Antwort ist <strong>${esc(after)}</strong>.` : pick(['Kein Problem, ich helfe dir!', 'Gute Idee, dass du fragst!', 'Lass uns das zusammen anschauen.']);
+      box.innerHTML = `<div class="astro" role="note" aria-label="Hinweis von Astronaut Nova">
+          <div class="astro-figure" aria-hidden="true">🧑‍🚀</div>
+          <div class="astro-bubble">
+            <div class="astro-name">Astronautin Nova</div>
+            <p class="astro-intro">${intro}</p>
+            <p>${esc(h.text || '')}</p>
+            ${h.visual ? renderVisual(h.visual) : ''}
+            ${h.syllables ? `<div class="syl-chips">${h.syllables.map(s => `<span class="syl-chip">${esc(s)}</span>`).join('')}</div>` : ''}
+            <button class="btn small-btn" id="astro-say">🔊 Nochmal anhören</button>
+          </div></div>`;
+      box.querySelector('#astro-say').onclick = () => sayHint(h);
+      box.scrollIntoView({ block: 'nearest', behavior: state.settings.calm ? 'auto' : 'smooth' });
+      if (!tipShown || after) sayHint(h);
+      tipShown = true;
+    };
+    const bulb = document.getElementById('tip');
+    bulb.onclick = () => { if (!tipShown) m.tips++; showHint(); bulb.classList.remove('nudge'); bulb.classList.add('used'); };
+    clearTimeout(runMission.nudge);
+    runMission.nudge = setTimeout(() => { if (!tipShown && document.body.contains(bulb) && !bulb.disabled) bulb.classList.add('nudge'); }, 25000);
     const next = () => { if (!m.active || runMission.current !== m) return; m.i++; if (m.i < tasks.length) renderTask(); else finish(); };
     document.getElementById('next').onclick = next;
 
     $app.querySelectorAll('.opt').forEach(btn => btn.onclick = () => {
       const o = t.options[Number(btn.dataset.k)];
       $app.querySelectorAll('.opt').forEach(b => b.disabled = true);
-      document.getElementById('tip').classList.add('hidden');
+      clearTimeout(runMission.nudge);
+      document.getElementById('tip').disabled = true;
       const fb = document.getElementById('fb');
       const right = t.options.findIndex(x => x.correct);
       if (o.correct) {
@@ -430,7 +461,7 @@ function runMission(p, moodB) {
         m.errors.push({ task: t.label, given: o.label, expected: t.options[right].label, type: o.type || 'sonstiges' });
         const msg = COMFORT[Math.floor(Math.random() * COMFORT.length)];
         fb.className = 'feedback soft'; fb.textContent = '🌱 ' + msg;
-        showHint();
+        showHint(t.options[right].display || t.options[right].label);
         const nb = document.getElementById('next'); nb.classList.remove('hidden'); nb.focus();
       }
     });
@@ -493,6 +524,10 @@ function renderVisual(v, planetId) {
     }
     case 'word':
       return `<div class="word-big">${wordHtml(v.word)}</div>`;
+    case 'text':
+      return `<div class="story">${esc(v.text)}</div>`;
+    case 'fracbar':
+      return `<div class="fracbar" role="img" aria-label="${v.k} von ${v.n} Teilen gefärbt">${Array.from({ length: v.n }, (_, i) => `<span class="${i < v.k ? 'on' : ''}"></span>`).join('')}</div>`;
     default: return '';
   }
 }
@@ -564,6 +599,41 @@ function askLogout() {
   s.querySelector('#stay').onclick = () => { closeModal(); renderStart(); };
   s.querySelector('#logout').onclick = () => { closeModal(); store.del('code'); store.del('offline_current'); state.code = null; state.kid = null; state.offline = false; renderStart(); };
   s.querySelector('#cancel').onclick = () => closeModal();
+}
+
+// ---------- Coach-Login ----------
+// Mit Server: Passwort-Login unter /coach. Als claude.ai-Web-App: Anmeldung über das Claude-Konto
+// (nur wer die App bearbeiten darf, also die Coachin, kommt hinein).
+async function coachLogin() {
+  if (state.server) { location.href = '/coach'; return; }
+  const sheet = openModal(`<h2>🔐 Coach-Login</h2><p>Anmeldung wird geprüft …</p>`, { center: true });
+  let allowed = false;
+  try {
+    for (let i = 0; i < 20 && !window.claude?.use; i++) await new Promise(r => setTimeout(r, 100));
+    const user = window.claude?.use ? await Promise.race([window.claude.use('user'), new Promise(r => setTimeout(() => r(null), 6000))]) : null;
+    allowed = user ? (await user.isOwner()) || (await user.canEdit()) : false;
+  } catch { allowed = false; }
+  if (!sheet.isConnected) return;
+  if (!allowed) {
+    sheet.innerHTML = `<h2>🔐 Coach-Login</h2>
+      <p>Der Coach-Bereich ist nur für das Team von ${APP_NAME}. Öffne die App dafür auf claude.ai und melde dich mit deinem Claude-Konto an.</p>
+      <p class="who-sub">Kinder brauchen keinen Login: einfach „Losfliegen“ oder den eigenen Code verwenden.</p>
+      <div class="sheet-actions"><button class="btn primary block" id="ok">Verstanden</button></div>`;
+    sheet.querySelector('#ok').onclick = () => closeModal();
+    return;
+  }
+  closeModal();
+  openCoach();
+}
+async function openCoach() {
+  if (!document.querySelector('link[href="css/coach.css"]')) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'css/coach.css'; document.head.appendChild(l);
+  }
+  const el = document.createElement('div');
+  el.className = 'lv-coach embedded';
+  document.body.appendChild(el);
+  const { bootLite } = await import('./coach-lite.js');
+  bootLite(el, { onExit: () => { el.remove(); renderStart(); } });
 }
 
 // ---------- Einstellungen ----------

@@ -4,7 +4,7 @@ import { start } from './coach.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName } from './codec.js';
 
-const KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
+let KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
 const MAX_SESSIONS = 400, MAX_ERRORS = 600;
 const now = () => new Date().toISOString();
 const err = m => { throw new Error(m); };
@@ -150,21 +150,23 @@ async function call(path, { method = 'GET', body = {} } = {}) {
 
 function kidLink(k, message) { return `${KID_APP_URL}#${kidHash(k.code, message)}`; }
 
-(async function boot() {
-  document.getElementById('root').innerHTML = '<p style="padding:24px" class="muted">Dashboard wird geladen …</p>';
-  try { store = await Promise.race([dbStore(), new Promise(r => setTimeout(() => r(null), 10000))]); } catch { store = null; }
-  if (!store) store = localStore();
-  try {
-    const all = await store.all();
-    state.kids = all.kids || [];
-    state.settings = { ...state.settings, ...(all.settings || {}) };
-  } catch (e) {
-    document.getElementById('root').innerHTML = `<p style="padding:24px">Die Daten konnten nicht geladen werden (${String(e.message || e.code || e)}). Bitte Seite neu laden.</p>`;
-    return;
+let booted = false;
+export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {}) {
+  if (kidAppUrl) KID_APP_URL = kidAppUrl;
+  hostEl.innerHTML = '<p style="padding:24px" class="muted">Coach-Bereich wird geladen …</p>';
+  if (!booted) {
+    try { store = await Promise.race([dbStore(), new Promise(r => setTimeout(() => r(null), 10000))]); } catch { store = null; }
+    if (!store) store = localStore();
+    try {
+      const all = await store.all();
+      state.kids = all.kids || [];
+      state.settings = { ...state.settings, ...(all.settings || {}) };
+    } catch (e) {
+      hostEl.innerHTML = `<p style="padding:24px">Die Daten konnten nicht geladen werden (${String(e.message || e.code || e)}). Bitte Seite neu laden.</p>`;
+      return;
+    }
+    booted = true;
   }
-  start({ call, kidLink, kidAppUrl: KID_APP_URL, local: !!store.local });
-  if (store.local) setTimeout(() => {
-    const t = document.getElementById('toast');
-    t.textContent = 'Hinweis: Speicher nur in diesem Browser aktiv.'; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 5000);
-  }, 500);
-})();
+  start({ call, kidLink, kidAppUrl: KID_APP_URL, local: !!store.local, onExit }, hostEl);
+}
+if (document.querySelector('meta[name="sh-lite"]')) bootLite(document.querySelector('.lv-coach'));

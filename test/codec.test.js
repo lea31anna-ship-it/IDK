@@ -20,6 +20,12 @@ test('Zugangscode hin und zurück', () => {
   assert.equal(p.message, 'Toll gemacht! 🌟 Übe die 7er-Reihe.'); assert.equal(p.id, 51234);
   assert.equal(parseKidHash('#' + kidHash(code)).message, null);
 });
+test('langer Code für höhere Stufen', () => {
+  const code = encodeKidCode({ name: 'Ela', id: 9, avatar: 1, unlocked: ['mengen', 'gleichung', 'komma'] });
+  assert.match(code, /^ELA-[2-9A-Z]{4}-[2-9A-Z]{5}-[2-9A-Z]{5}-[2-9A-Z]{5}$/);
+  assert.deepEqual(decodeKidCode(code).unlocked, ['mengen', 'gleichung', 'komma']);
+  assert.deepEqual(parseKidHash('#' + kidHash(code, 'Hi')).unlocked, ['mengen', 'gleichung', 'komma']);
+});
 test('Bericht hin und zurück', async () => {
   const kid = { id: 7, name: 'Mia', code: 'MIA-X', progress: { mal7: { bestStars: 2, attempts: 3, correct: 25, total: 30, lastPlayed: '2026-11-19T10:00:00.000Z' } },
     sessions: [{ ts: '2026-11-19T10:00:00.000Z', planetId: 'mal7', correct: 9, total: 10, moodBefore: 2, moodAfter: 4, tips: 1, durationSec: 100 }],

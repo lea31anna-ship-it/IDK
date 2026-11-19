@@ -1,4 +1,4 @@
-# 🚀 Sternenhüpfer
+# 🪐 Lerniversum
 
 **Lern-App für Kinder mit Legasthenie und Dyskalkulie, gestaltet als Galaxie.** Das Kind hüpft mit seiner Rakete von Planet zu Planet. Wer einen Planeten schafft, schaltet den nächsten frei (z. B. 1er-Reihe → 2er-Reihe → 3er-Reihe …).
 
@@ -13,6 +13,18 @@ Die App hat drei Teile:
 ---
 
 ## 🌌 Inhalte
+
+Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
+
+| Stufe | Mathe | Deutsch |
+|---|---|---|
+| **VS 1–2** | Zahlen-Galaxie (18) | Buchstaben-Galaxie (7) |
+| **VS 3–4** | Rechen-Nebel (9): Plus und Minus bis 100 und 1000, Mal mit Zehnern, halbschriftlich, Division mit Rest, Größen, Sachaufgaben | Wörter-Nebel (7): Großschreibung, Mehrzahl, Doppelmitlaute, ie/i, Dehnungs-h, Trennen, Leseverständnis |
+| **Unterstufe** | Mathe-Sternbild (10): negative Zahlen, Punkt vor Strich, Teilbarkeit, Potenzen, Brüche, Dezimalzahlen, Prozent, Gleichungen | Sprach-Sternbild (6): Wortarten, Präteritum, s/ss/ß, Nominalisierung, das/dass, Komma |
+
+**💡 Astronautin Nova:** Jede Aufgabe hat oben rechts eine Glühbirne. Ein Tipp darauf lässt die Astronautin erscheinen; sie erklärt die Aufgabe und liest den Hinweis vor. Nach einem Fehler kommt sie von selbst und zeigt die Lösung. Bleibt ein Kind 25 Sekunden hängen, wackelt die Glühbirne.
+
+**🔐 Coach-Login auf der Startseite:** Mit Server führt der Knopf zum Passwort-Login. Als claude.ai-Web-App erfolgt die Anmeldung über das Claude-Konto, und nur die Besitzerin bzw. Bearbeiter*innen kommen hinein.
 
 **Zahlen-Galaxie (Dyskalkulie), 18 Planeten**
 Punkte-Planet (Mengen auf einen Blick erfassen) → Zahlenhaus (Zerlegen) → Plus/Minus bis 10 → Plus/Minus bis 20 mit Zehnerübergang → **Einmaleins 1er- bis 10er-Reihe** → Geteilt → Einmaleins-Sonne (gemischte Abschlussprüfung)
@@ -34,7 +46,7 @@ Jede Mission hat 10 Aufgaben. Bei 7 richtigen ist der Planet geschafft (1–3 St
 
 ## ⭐ Dein USP: was dich von anderen abhebt
 
-Normale Lern-Apps zeigen nur „richtig“ oder „falsch“. Sternenhüpfer zeigt dir, **warum** ein Kind falsch liegt und **wie es sich dabei fühlt**.
+Normale Lern-Apps zeigen nur „richtig“ oder „falsch“. Lerniversum zeigt dir, **warum** ein Kind falsch liegt und **wie es sich dabei fühlt**.
 
 1. **🎯 Fehler-Radar (Förderdiagnostik zwischen den Stunden)**
    Jede falsche Antwortmöglichkeit steht für ein typisches Fehlermuster, zum Beispiel Zählfehler ±1, Zahlendreher (21↔12), Stellenwertfehler ±10, Nachbaraufgabe im 1×1, verwechselte Rechenart, b/d-Spiegelung, ähnliche Laute (d/t, g/k), Buchstabendreher oder Auslassungen.

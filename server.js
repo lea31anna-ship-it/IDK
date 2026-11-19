@@ -1,4 +1,4 @@
-// Sternenhüpfer – Server ohne externe Abhängigkeiten.
+// Lerniversum – Server ohne externe Abhängigkeiten.
 // Liefert die Kinder-App (/), das Coach-Dashboard (/coach) und eine kleine JSON-API.
 // Daten liegen in DATA_DIR/db.json (Standard: ./data).
 
@@ -221,7 +221,7 @@ async function api(req, res, url) {
     }
   }
   if (p === '/api/coach/export' && m === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="sternenhuepfer-backup-${now().slice(0, 10)}.json"` });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="lerniversum-backup-${now().slice(0, 10)}.json"` });
     return res.end(JSON.stringify({ exportedAt: now(), settings: db.settings, kids: db.kids }, null, 1));
   }
   if (p === '/api/coach/overview' && m === 'GET') {
@@ -302,7 +302,7 @@ export function createServer() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   loadDb();
   createServer().listen(PORT, () => {
-    console.log(`🚀 Sternenhüpfer läuft auf http://localhost:${PORT}`);
+    console.log(`🪐 Lerniversum läuft auf http://localhost:${PORT}`);
     console.log(`   Coach-Dashboard: http://localhost:${PORT}/coach`);
     if (!db.coach) console.log('   ⚠ Noch kein Coach-Passwort gesetzt – bitte sofort /coach öffnen und einrichten (oder COACH_PASSWORD setzen).');
   });

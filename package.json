@@ -1,7 +1,7 @@
 {
-  "name": "sternenhuepfer",
+  "name": "lerniversum",
   "version": "1.0.0",
-  "description": "Sternenhüpfer – Galaxie-Lern-App für Kinder mit Legasthenie und Dyskalkulie, inkl. Coach-Dashboard",
+  "description": "Lerniversum – Galaxie-Lern-App für Kinder mit Legasthenie und Dyskalkulie, inkl. Coach-Dashboard",
   "type": "module",
   "main": "server.js",
   "scripts": {

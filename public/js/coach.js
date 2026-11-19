@@ -1,6 +1,7 @@
 import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked } from './curriculum.js';
 
-const root = document.getElementById('root');
+import { APP_NAME } from './curriculum.js';
+let root = null, host = null, toastEl = null; // werden in start() gesetzt
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
 const S = { token: ls.get('sh_coach_token'), kids: [], settings: {}, view: 'overview', kid: null, tab: 'overview', range: 30, lite: null };
@@ -13,7 +14,7 @@ const daysAgo = ts => ts ? Math.floor((Date.now() - Date.parse(ts)) / 86400000) 
 const starsHtml = n => [1, 2, 3].map(i => `<span class="${i <= n ? '' : 'off'}">★</span>`).join('');
 const pName = id => PLANET_BY_ID[id]?.name || id;
 
-function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); }
+function toast(m) { const t = toastEl; t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); }
 async function api(path, opts = {}) {
   if (S.lite) return S.lite.call(path, opts);
   const { method = 'GET', body } = opts;
@@ -31,7 +32,7 @@ function ask(text, { okLabel = 'OK', danger = false, typeToConfirm = null } = {}
     d.innerHTML = `<form method="dialog"><p style="margin-top:0">${esc(text)}</p>
       ${typeToConfirm ? `<div class="field"><input id="ask-in" type="text" autocomplete="off" aria-label="Bestätigung"></div>` : ''}
       <div class="row"><button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${esc(okLabel)}</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
-    document.body.appendChild(d); d.showModal();
+    host.appendChild(d); d.showModal();
     d.addEventListener('close', () => { const ok = d.returnValue === 'ok' && (!typeToConfirm || d.querySelector('#ask-in').value.trim() === typeToConfirm); d.remove(); resolve(ok); });
   });
 }
@@ -40,7 +41,7 @@ function showCopy(title, text, hint = '') {
   d.innerHTML = `<form method="dialog"><h2 style="margin-top:0">${esc(title)}</h2>${hint ? `<p class="muted">${esc(hint)}</p>` : ''}
     <textarea id="cp" readonly style="min-height:110px"></textarea>
     <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="cpb">📋 Kopieren</button><button class="btn" value="close">Schließen</button></div></form>`;
-  document.body.appendChild(d); d.showModal();
+  host.appendChild(d); d.showModal();
   const ta = d.querySelector('#cp'); ta.value = text;
   d.querySelector('#cpb').onclick = () => copyText(text, ta);
   d.addEventListener('close', () => d.remove());
@@ -58,7 +59,7 @@ async function renderLogin() {
   root.innerHTML = `
     <div class="login">
       <div class="card">
-        <div class="brand" style="margin-bottom:8px">🚀 Sternenhüpfer <small>Coach-Dashboard</small></div>
+        <div class="brand" style="margin-bottom:8px">🪐 ${APP_NAME} <small>Coach-Bereich</small></div>
         <h1 style="font-size:1.3em">${setup ? 'Willkommen! Lege dein Passwort fest' : 'Anmelden'}</h1>
         ${setup ? '<p class="muted">Dieses Passwort schützt alle Daten deiner Kinder. Mindestens 8 Zeichen – am besten ein langer Satz.</p>' : ''}
         <form id="f">
@@ -98,10 +99,11 @@ function render() {
     <div class="layout">
       <aside class="side collapsed" id="side">
         <div class="row" style="justify-content:space-between">
-          <div class="brand">🚀 <span>Sternenhüpfer<small>${esc(S.settings.practiceName || 'Coach-Dashboard')}</small></span></div>
+          <div class="brand">🪐 <span>${APP_NAME}<small>Coach-Bereich${S.settings.coachName ? ' · ' + esc(S.settings.coachName) : ''}</small></span></div>
           <button class="btn small mobile-bar" id="menu">☰ Menü</button>
         </div>
         <div class="collapsible">
+          ${S.lite?.onExit ? '<button class="btn small exit-btn" id="exit">← Zur Lern-App</button>' : ''}
           <nav class="nav">
             <button data-v="overview" class="${S.view === 'overview' ? 'active' : ''}">📊 Übersicht</button>
             <button data-v="settings" class="${S.view === 'settings' ? 'active' : ''}">⚙️ Einstellungen</button>
@@ -119,6 +121,7 @@ function render() {
       </aside>
       <main id="main"></main>
     </div>`;
+  root.querySelector('#exit')?.addEventListener('click', () => S.lite.onExit());
   root.querySelectorAll('.nav button').forEach(b => b.onclick = () => { S.view = b.dataset.v; render(); });
   root.querySelectorAll('.kid-item').forEach(b => b.onclick = () => openKid(b.dataset.id));
   document.getElementById('add').onclick = newKidDialog;
@@ -203,7 +206,7 @@ function newKidDialog() {
     <div class="field"><label>Avatar</label><div class="emoji-pick">${AVATARS.map((a, i) => `<button type="button" data-a="${a}" class="${i ? '' : 'sel'}">${a}</button>`).join('')}</div></div>
     <p class="err" id="nk-err"></p>
     <div class="row"><button class="btn primary" value="ok">Anlegen & Code erzeugen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
-  document.body.appendChild(d); d.showModal();
+  host.appendChild(d); d.showModal();
   d.querySelectorAll('.emoji-pick button').forEach(b => b.onclick = () => { av = b.dataset.a; d.querySelectorAll('.emoji-pick button').forEach(x => x.classList.toggle('sel', x === b)); });
   d.querySelector('form').onsubmit = async e => {
     if (e.submitter?.value === 'cancel') return;
@@ -452,6 +455,25 @@ const PARENT_WORDS = {
   dreher: 'Beim Schreiben werden Buchstaben manchmal in der Reihenfolge vertauscht.',
   auslassung: 'Beim Schreiben werden manchmal Buchstaben ausgelassen.',
   aehnliches_wort: 'Ähnlich aussehende Wörter werden beim Lesen noch verwechselt.',
+  uebertrag: 'Beim Rechnen über den Zehner oder Hunderter hinweg geht der Übertrag noch verloren.',
+  teilprodukt: 'Beim Malnehmen größerer Zahlen wird noch ein Teil vergessen.',
+  rest: 'Bei Divisionen mit Rest ist der Rest noch unsicher.',
+  einheit: 'Das Umrechnen von Maßeinheiten (z. B. m in cm) wird noch geübt.',
+  vorzeichen: 'Bei negativen Zahlen passieren noch Vorzeichenfehler.',
+  punkt_vor_strich: 'Die Regel „Punkt vor Strich“ wird noch nicht immer beachtet.',
+  bruch: 'Beim Rechnen mit Brüchen werden Zähler und Nenner noch wie normale Zahlen behandelt.',
+  komma: 'Bei Kommazahlen wird noch gedacht: mehr Ziffern = größere Zahl.',
+  prozent: 'Prozentrechnungen sind noch unsicher.',
+  gleichung: 'Beim Lösen von Gleichungen wird noch die falsche Gegenrechnung verwendet.',
+  grossklein: 'Groß- und Kleinschreibung wird noch geübt.',
+  doppelkonsonant: 'Doppelte Mitlaute (z. B. Sonne) werden noch vergessen oder zu viel gesetzt.',
+  ie_i: '„ie“ und „i“ werden noch verwechselt.',
+  dehnung: 'Das Dehnungs-h wird noch unsicher gesetzt.',
+  sinn: 'Beim Lesen kurzer Texte werden Informationen noch verwechselt.',
+  das_dass: '„das“ und „dass“ werden noch verwechselt.',
+  s_laute: 's, ss und ß werden noch verwechselt.',
+  zeitform: 'Unregelmäßige Vergangenheitsformen (z. B. ging statt gehte) werden noch geübt.',
+  kommasetzung: 'Das Komma vor Bindewörtern (weil, dass, wenn) wird noch vergessen.',
 };
 function tabReport(el, k) {
   S.range = 30;
@@ -467,7 +489,7 @@ function tabReport(el, k) {
     <div class="row no-print" style="margin-bottom:12px"><button class="btn primary" id="print">${S.lite ? '📋 Als Text kopieren' : '🖨 Drucken / als PDF speichern'}</button>
       <label class="switch"><input type="checkbox" id="withnotes"> Notizen mitdrucken</label></div>
     <div class="card" id="report">
-      <p class="muted" style="margin:0">${esc(S.settings.practiceName || 'Lerncoaching')} ${S.settings.coachName ? '· ' + esc(S.settings.coachName) : ''}</p>
+      <p class="muted" style="margin:0">${esc(S.settings.practiceName || APP_NAME)} ${S.settings.coachName ? '· ' + esc(S.settings.coachName) : ''}</p>
       <h2 style="font-size:1.4em;margin:.2em 0 .6em">Lernbericht für ${esc(k.name)} <span class="muted" style="font-size:.6em">${fmtDate(Date.now() - since * 86400000)} – ${fmtDate(Date.now())}</span></h2>
       <h3>🚀 Fleiß</h3>
       <p>${esc(k.name)} hat in den letzten ${since} Tagen <strong>${sess.length} Missionen</strong> gespielt (${minutes} Minuten Übungszeit)${doneNow.length ? ` und dabei ${doneNow.length} Planeten erfolgreich abgeschlossen: ${doneNow.map(id => esc(pName(id))).join(', ')}` : ''}.</p>
@@ -499,7 +521,7 @@ function printCard(k) {
   <body style="font-family:Verdana,sans-serif;display:grid;place-items:center;min-height:90vh;margin:0">
   <div style="width:340px;border:3px dashed #5b3fd6;border-radius:20px;padding:24px;text-align:center">
     <div style="font-size:48px">${esc(k.avatar)} 🚀</div>
-    <h1 style="margin:.2em 0;font-size:22px">Sternenhüpfer</h1>
+    <h1 style="margin:.2em 0;font-size:22px">${APP_NAME}</h1>
     <p style="margin:.2em 0">Hallo <strong>${esc(k.name)}</strong>! Dein geheimer Code:</p>
     <p style="font-size:30px;font-weight:900;letter-spacing:3px;background:#f0edff;border-radius:12px;padding:10px">${esc(k.code)}</p>
     <p style="font-size:14px">Öffne <strong>${esc(url)}</strong><br>und tippe auf „Ich habe einen Code“.</p>
@@ -515,7 +537,7 @@ function editKidDialog() {
     <div class="field"><label for="en">Name</label><input id="en" type="text" maxlength="40" value="${esc(k.name)}" required></div>
     <div class="field"><label>Avatar</label><div class="emoji-pick">${AVATARS.map(a => `<button type="button" data-a="${a}" class="${a === av ? 'sel' : ''}">${a}</button>`).join('')}</div></div>
     <div class="row"><button class="btn primary" value="ok">Speichern</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
-  document.body.appendChild(d); d.showModal();
+  host.appendChild(d); d.showModal();
   d.querySelectorAll('.emoji-pick button').forEach(b => b.onclick = () => { av = b.dataset.a; d.querySelectorAll('.emoji-pick button').forEach(x => x.classList.toggle('sel', x === b)); });
   d.querySelector('form').onsubmit = async e => {
     if (e.submitter?.value === 'cancel') return;
@@ -566,7 +588,7 @@ function renderSettings(main) {
   if (!S.lite) main.querySelector('#exp').onclick = async () => {
     const r = await fetch('/api/coach/export', { headers: { Authorization: 'Bearer ' + S.token } });
     const blob = await r.blob(); const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `sternenhuepfer-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+    a.href = URL.createObjectURL(blob); a.download = `lerniversum-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
   };
 }
 
@@ -574,7 +596,7 @@ function shareLink(k, message = '') {
   const url = S.lite.kidLink(k, message);
   const text = message
     ? `📡 Ein Funkspruch für ${k.name}! Einfach antippen: ${url}`
-    : `🚀 Hallo! Hier ist ${k.name}s persönlicher Sternenhüpfer-Link: ${url}\n(Falls der Link nicht geht: Code „${k.code}“ in der App unter „Ich habe einen Code“ eingeben.)`;
+    : `🚀 Hallo! Hier ist ${k.name}s persönlicher ${APP_NAME}-Link: ${url}\n(Falls der Link nicht geht: Code „${k.code}“ in der App unter „Ich habe einen Code“ eingeben.)`;
   showCopy(message ? 'Funkspruch-Link für die Eltern' : `Link für ${k.name}`, text, 'Schick diesen Text den Eltern, z. B. per WhatsApp oder E-Mail. Neuer Link = neue Freischaltungen; der Fortschritt des Kindes bleibt erhalten.');
 }
 function importDialog() {
@@ -583,7 +605,7 @@ function importDialog() {
     <p class="muted">Füge den Text ein, den dir die Eltern geschickt haben (er enthält „SH1“).</p>
     <textarea id="imp-t" style="min-height:140px"></textarea><p class="err" id="imp-e"></p>
     <div class="row"><button class="btn primary" value="ok">Übernehmen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
-  document.body.appendChild(d); d.showModal();
+  host.appendChild(d); d.showModal();
   d.querySelector('form').onsubmit = async e => {
     if (e.submitter?.value === 'cancel') return;
     e.preventDefault();
@@ -596,8 +618,11 @@ function importDialog() {
   d.addEventListener('close', () => d.remove());
 }
 
-export function start(lite = null) {
+export function start(lite = null, hostEl = null) {
   S.lite = lite;
+  host = hostEl || document.querySelector('.lv-coach');
+  host.innerHTML = '<div class="lv-root"></div><div class="lv-toast" role="status"></div>';
+  root = host.firstElementChild; toastEl = host.lastElementChild;
   if (lite) boot(); else S.token ? boot() : renderLogin();
 }
-if (!document.querySelector('meta[name="sh-lite"]')) start();
+if (document.querySelector('.lv-coach[data-auto]')) start(); // Server-Version (coach.html)
