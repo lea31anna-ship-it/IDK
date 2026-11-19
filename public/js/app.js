@@ -214,7 +214,7 @@ function offlineLogin(c, message = null, extra = null) {
   const all = offlineKids();
   const k = all[c.id] || { id: c.id, progress: {}, sessions: [], errors: [], seen: [] };
   Object.assign(k, { name: c.name, avatar: c.avatar, code: c.code, unlocked: c.unlocked, autoAdvance: c.autoAdvance });
-  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; if (extra.contact) k.contact = extra.contact; if (extra.stufe != null) k.stufe = extra.stufe; } // nur aus einem Link der Coachin
+  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; if (extra.contact) k.contact = extra.contact; if (extra.stufe != null) k.stufe = extra.stufe; k.plan = extra.plan || []; } // nur aus einem Link der Coachin
   k.mailbox ||= [];
   k.inbox ||= [];
   if (message) {
@@ -255,7 +255,14 @@ async function showReport() {
 }
 
 const unlockCtx = () => ({ mode: state.mode, progress: state.progress, unlocked: state.unlocked, autoAdvance: state.autoAdvance });
-const open = id => isUnlocked(id, unlockCtx());
+// Lernplan der Coachin: nur ausgewählte Themen-Galaxien sind sichtbar (leer = alle)
+function kidPlan() {
+  if (state.mode !== 'kid') return [];
+  const k = state.offline ? offlineKids()[state.kid?.id] : state.kid;
+  return Array.isArray(k?.plan) ? k.plan.filter(id => GALAXIES.some(g => g.id === id)) : [];
+}
+const galaxyVisible = gid => { const p = kidPlan(); return !p.length || p.includes(gid); };
+const open = id => isUnlocked(id, unlockCtx()) && galaxyVisible(PLANET_BY_ID[id]?.galaxy);
 
 // ---------- Galaxie-Karte: ein durchgehender Pfad pro Fach (Galaxie für Galaxie nach unten) ----------
 const SPACING = 150, HEAD_H = 300, SECTION_GAP = 60;
@@ -273,7 +280,7 @@ const galaxyHue = i => [200, 280, 330, 25, 150, 255, 185, 45, 300][i % 9];
 // Gesamte Reiseroute eines Fachs vorberechnen (Positionen für Planeten, Stationen und Überschriften)
 let LAYOUT = null;
 function chainLayout(gid) {
-  const chain = chainOf(gid), pos = {}, sections = [];
+  const chain = chainOf(gid).filter(x => galaxyVisible(x.id)), pos = {}, sections = [];
   let y = 10;
   chain.forEach((g, si) => {
     const headY = y; y += HEAD_H;
@@ -287,7 +294,9 @@ const rocketKey = level => 'rocket_' + level + (state.mode === 'kid' ? '_' + sta
 const galaxyLocked = g => !open(planetsOf(g.id)[0].id);
 
 function renderMap(focusId = null) {
-  const g = GALAXIES.find(x => x.id === state.galaxy) || GALAXIES[0];
+  let g = GALAXIES.find(x => x.id === state.galaxy) || GALAXIES[0];
+  if (!galaxyVisible(g.id)) { g = GALAXIES.find(x => x.level === g.level && galaxyVisible(x.id)) || GALAXIES.find(x => galaxyVisible(x.id)) || GALAXIES[0]; state.galaxy = g.id; }
+  const subjects = LEVELS.filter(l => GALAXIES.some(x => x.level === l.id && galaxyVisible(x.id)));
   const L = LAYOUT = chainLayout(g.id);
   const kid = state.mode === 'kid' ? state.kid : null;
   const allPlanets = L.chain.flatMap(x => planetsOf(x.id));
@@ -302,10 +311,9 @@ function renderMap(focusId = null) {
   $app.innerHTML = `
     ${topbar()}
     ${dm ? `<button class="daily" id="daily"><span class="daily-i">🎯</span><span class="daily-t"><b>Tagesmission:</b> ${esc(dm.planet.name)}<small>${doneToday ? '✅ Heute schon geübt – super!' : esc(dm.why)}</small></span><span class="daily-go">Los ➜</span></button>` : ''}
-    <nav class="subjects" role="tablist" aria-label="Fach">
-      ${LEVELS.map(l => `<button class="subject" role="tab" data-l="${l.id}" aria-selected="${l.id === g.level}"><span class="sj-i">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
-    </nav>
-    <nav class="chain" aria-label="Galaxien – zum Springen antippen">${L.chain.map((x, i) => `${i ? '<span class="chain-arrow" aria-hidden="true">›</span>' : ''}<button class="chain-step ${x.id === g.id ? 'cur' : ''} ${galaxyDone(x.id, state.progress) ? 'done' : ''}" data-g="${x.id}">${galaxyDone(x.id, state.progress) ? '✓ ' : ''}${x.icon} ${esc(x.name)}</button>`).join('')}</nav>
+    ${subjects.length > 1 ? `<nav class="subjects" role="tablist" aria-label="Fach">
+      ${subjects.map(l => `<button class="subject" role="tab" data-l="${l.id}" aria-selected="${l.id === g.level}"><span class="sj-i">${l.icon}</span> ${esc(l.name)}</button>`).join('')}
+    </nav>` : ''}
     ${getProfile().placement?.[g.level] ? '' : `<button class="placement-cta" id="placement"><span>🧭</span><span><b>Neu hier? Mach den Einstufungstest ${g.level === 'mathe' ? 'Mathe' : 'Deutsch'}</b><small>Ein kurzes Quiz – danach weißt du, wo du starten kannst.</small></span></button>`}
     <div class="gx-sticky" id="gx-sticky" aria-live="polite"></div>
     <div class="map ${calm ? 'calm' : ''}" id="map" style="height:${L.height}px">
@@ -348,29 +356,20 @@ function renderMap(focusId = null) {
   bindChrome();
   const stickyEl = document.getElementById('gx-sticky');
   const headEls = [...$app.querySelectorAll('.gx-head')];
-  const scrollToGalaxy = (gid, smooth = true) => {
-    const el = headEls.find(h => h.dataset.g === gid); if (!el) return;
-    const top = el.getBoundingClientRect().top + scrollY - (document.querySelector('.topbar')?.offsetHeight || 60) - 24;
-    window.scrollTo({ top, behavior: smooth && !calm ? 'smooth' : 'auto' });
-  };
   document.getElementById('placement')?.addEventListener('click', () => startPlacement(g.level));
   document.getElementById('daily')?.addEventListener('click', () => {
     if (levelOfGalaxy(dm.planet.galaxy) !== g.level) { state.galaxy = dm.planet.galaxy; store.set('galaxy', state.galaxy); renderMap(dm.planet.id); }
     else focusPlanet(dm.planet.id);
   });
-  $app.querySelectorAll('.chain-step').forEach(b => b.onclick = () => scrollToGalaxy(b.dataset.g));
   headEls.forEach(h => h.onclick = () => {
     if (h.classList.contains('locked')) { h.classList.remove('wiggle'); void h.offsetWidth; h.classList.add('wiggle'); toast('🔒 Schaffe zuerst alle Planeten der Galaxie davor – dann geht die Reise hier weiter!'); }
   });
   $app.querySelectorAll('.subject').forEach(b => b.onclick = () => {
     if (b.dataset.l === g.level) return;
     store.set('galaxy_' + g.level, state.galaxy); // pro Fach merken, wo man zuletzt war
-    const same = GALAXIES.filter(x => x.level === b.dataset.l), last = store.get('galaxy_' + b.dataset.l, null);
+    const same = GALAXIES.filter(x => x.level === b.dataset.l && galaxyVisible(x.id)), last = store.get('galaxy_' + b.dataset.l, null);
     state.galaxy = (same.find(x => x.id === last) || same[0]).id; store.set('galaxy', state.galaxy); scrollTo(0, 0); renderMap();
   });
-
-  // Themen-Leiste horizontal mitführen (ohne scrollIntoView – das würde das Scrollen der Seite unterbrechen)
-  const centerChainStep = () => { const nav = $app.querySelector('.chain'), b = nav?.querySelector('.chain-step.cur'); if (b) nav.scrollTo({ left: b.offsetLeft - nav.clientWidth / 2 + b.offsetWidth / 2 }); };
 
   // Überschriften fliegen beim Hineinscrollen ein
   if ('IntersectionObserver' in window && !calm) {
@@ -394,8 +393,6 @@ function renderMap(focusId = null) {
     stickyEl.style.setProperty('--h', s.hue);
     stickyEl.innerHTML = `<span class="gs-icon">${s.g.icon}</span><span class="gs-t"><small>Galaxie ${s.si + 1} von ${L.chain.length}</small><b>${esc(s.g.name)}</b></span><span class="gs-p">${d}/${n} 🪐</span>`;
     if (!first && !calm) { stickyEl.classList.remove('swap'); void stickyEl.offsetWidth; stickyEl.classList.add('swap'); }
-    $app.querySelectorAll('.chain-step').forEach(b => b.classList.toggle('cur', b.dataset.g === curG));
-    centerChainStep();
     if (state.galaxy !== curG) { state.galaxy = curG; store.set('galaxy', curG); }
   };
   let ticking = false;

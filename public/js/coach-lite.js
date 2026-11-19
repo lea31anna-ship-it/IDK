@@ -3,6 +3,7 @@
 import { start } from './coach.js';
 import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
+import { cleanPlan } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName, encodeExtra, linkExtra } from './codec.js';
 import { parseWordInput } from './words.js';
 import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog, contactTimeline } from './org-model.js';
@@ -174,6 +175,7 @@ async function call(path, { method = 'GET', body = {} } = {}) {
       if (body.avatar !== undefined) k.avatar = AVATARS.includes(body.avatar) ? body.avatar : k.avatar;
       if (Array.isArray(body.unlocked)) k.unlocked = [...new Set(body.unlocked.filter(id => PLANET_BY_ID[id]))];
       if (body.autoAdvance !== undefined) k.autoAdvance = !!body.autoAdvance;
+      if (body.plan !== undefined) k.plan = cleanPlan(body.plan);
       if (body.notes !== undefined) k.notes = String(body.notes).slice(0, 20000);
       if (body.profile !== undefined) k.profile = cleanProfile(body.profile);
       if (body.goals !== undefined) k.goals = cleanGoals(body.goals);

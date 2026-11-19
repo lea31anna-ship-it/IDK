@@ -23,7 +23,7 @@ export const GALAXIES = [
   { id: 'laute', stufe: 0, name: 'Laute & Buchstaben', short: 'Deutsch', icon: '👂', level: 'deutsch', grade: 'Grundlagen', desc: 'Laute hören und unterscheiden (b/p, d/t …)' },
   { id: 'silben', stufe: 1, name: 'Silben, Reime & Lesen', short: 'Deutsch', icon: '🎵', level: 'deutsch', grade: 'ab 1. Klasse', desc: 'Silben, Reime, Wörter und Sätze lesen' },
   { id: 'rechtschreibung', stufe: 2, name: 'Rechtschreibung', short: 'Deutsch', icon: '✍️', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Doppelmitlaute, ie, h, ä/äu, s/ss/ß, das/dass' },
-  { id: 'grammatik', stufe: 3, name: 'Grammatik', short: 'Deutsch', icon: '🔤', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Nomen, Mehrzahl, Wortarten, Zeiten, Komma' },
+  { id: 'grammatik', stufe: 2, name: 'Grammatik', short: 'Deutsch', icon: '🔤', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Nomen, Mehrzahl, Wortarten, Zeiten, Komma' },
 ];
 /** Galaxien-Kette (gleiche Stufe, gleiches Fach) in Reiseroute-Reihenfolge */
 export const chainOf = galaxyId => { const g = GALAXIES.find(x => x.id === galaxyId); return GALAXIES.filter(x => x.level === g.level && x.short === g.short); };
@@ -257,6 +257,26 @@ export function placementPlan(subject, stufe = null) {
   const used = new Set(items.map(x => x[0]));
   return { items, easier: easier.filter(x => !used.has(x[0])), assumed: [...new Set(easier.map(x => x[0]))].filter(t => !used.has(t)) };
 }
+/**
+ * Lernplan-Vorschlag nach Klasse: Themen der aktuellen und der vorigen Klassenstufe.
+ * Gibt es in einem Fach dafür keine Themen (z. B. Deutsch in der Unterstufe), werden die obersten Themen genommen.
+ */
+export function suggestPlan(stufe) {
+  if (stufe === '' || stufe == null || Number.isNaN(Number(stufe))) return [];
+  const s = Number(stufe), out = [];
+  for (const l of LEVELS) {
+    const gs = GALAXIES.filter(g => g.level === l.id);
+    let pick = gs.filter(g => g.stufe >= s - 1 && g.stufe <= s);
+    if (pick.length < 2 && s < 5) pick = gs.filter(g => g.stufe >= s - 2 && g.stufe <= s); // mindestens 2 Themen je Fach
+    if (s >= 5 && l.id === 'mathe') pick = gs.filter(g => g.stufe >= 5 || (s === 5 && g.stufe === 3));
+    if (!pick.length) { const top = Math.max(...gs.filter(g => g.stufe <= s).map(g => g.stufe)); pick = gs.filter(g => g.stufe >= top - 1 && g.stufe <= s); }
+    out.push(...pick.map(g => g.id));
+  }
+  return out;
+}
+/** Erste Planeten der gewählten Themen – die werden beim Lernplan automatisch geöffnet */
+export const planUnlocks = plan => (plan || []).map(gid => planetsOf(gid)[0]?.id).filter(Boolean);
+export const cleanPlan = plan => (Array.isArray(plan) ? [...new Set(plan.filter(id => GALAXIES.some(g => g.id === id)))] : []);
 /** Auswertung: je Thema sicher / teilweise / üben / offen + empfohlenes Start-Thema */
 export function evaluatePlacement(subject, results, assumed = []) {
   const topics = GALAXIES.filter(g => g.level === subject).map(g => {

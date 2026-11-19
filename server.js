@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION, levelStars } from './public/js/curriculum.js';
+import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION, levelStars, cleanPlan } from './public/js/curriculum.js';
 import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog, contactTimeline } from './public/js/org-model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,7 +110,7 @@ function readBody(req) {
 // Daten, die das Kind über sich sehen darf (keine Notizen der Coachin!)
 function kidPublic(k) {
   return {
-    name: k.name, avatar: k.avatar, code: k.code, unlocked: k.unlocked, autoAdvance: k.autoAdvance,
+    name: k.name, avatar: k.avatar, code: k.code, unlocked: k.unlocked, autoAdvance: k.autoAdvance, plan: k.plan || [],
     progress: k.progress, messages: k.messages.filter(m => !m.read).map(({ id, text, ts }) => ({ id, text, ts })),
     wordLists: k.wordLists || [], reward: k.reward || null, stufe: k.profile?.stufe === '' || k.profile?.stufe == null ? null : Number(k.profile.stufe), contact: { name: db.settings.coachName, phone: db.settings.phone || '', email: db.settings.email || '' },
     mailbox: k.messages.slice(-30).map(({ text, ts }) => ({ text, ts })),
@@ -273,6 +273,7 @@ async function api(req, res, url) {
       if (b.avatar !== undefined) k.avatar = clip(b.avatar, 8);
       if (Array.isArray(b.unlocked)) k.unlocked = [...new Set(b.unlocked.filter(id => PLANET_BY_ID[id]))];
       if (b.autoAdvance !== undefined) k.autoAdvance = !!b.autoAdvance;
+      if (b.plan !== undefined) k.plan = cleanPlan(b.plan);
       if (b.notes !== undefined) k.notes = clip(b.notes, 20000);
       if (Array.isArray(b.wordLists)) k.wordLists = b.wordLists.slice(0, 20).map((l, i) => ({ id: clip(l.id || 'l' + i, 20), name: clip(l.name, 40) || 'Lernwörter', words: (Array.isArray(l.words) ? l.words : []).slice(0, 60).map(w => clip(w, 30)).filter(Boolean) }));
       if (b.profile !== undefined) k.profile = cleanProfile(b.profile);

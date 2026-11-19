@@ -1,4 +1,4 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS, PLACEMENT_STATUS, stufeLabel } from './curriculum.js';
+import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS, PLACEMENT_STATUS, stufeLabel, suggestPlan, planUnlocks } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
@@ -264,11 +264,11 @@ function newKidDialog() {
     try {
       const profile = readDatasheet(d);
       const k = await api('/api/coach/kids', { method: 'POST', body: { name: d.querySelector('#nk-name').value, avatar: av } });
-      await api('/api/coach/kids/' + k.id, { method: 'PATCH', body: { profile } });
+      const plan = suggestPlan(profile.stufe); // Lernplan automatisch nach Klasse
+      await api('/api/coach/kids/' + k.id, { method: 'PATCH', body: { profile, ...(plan.length ? { plan, unlocked: planUnlocks(plan) } : {}) } });
       d.close(); await refreshKids(); await openKid(k.id, 'unlock');
       if (profile.stufe === '') toast('Tipp: Trag noch die Klasse ein (🎒 oben), damit der Einstufungstest passt.');
-      else if (S.lite) toast('Wähle die Planeten aus und speichere – dann bekommst du den Link für die Eltern.');
-      else toast(`Code für ${k.name}: ${k.code}`);
+      else toast(S.lite ? 'Lernplan passend zur Klasse vorbereitet – prüfe ihn und speichere, dann bekommst du den Link für die Eltern.' : `Lernplan passend zur Klasse vorbereitet. Code für ${k.name}: ${k.code}`);
     } catch (x) { d.querySelector('#nk-err').textContent = x.message; }
   };
   d.addEventListener('close', () => d.remove());
@@ -280,7 +280,7 @@ async function openKid(id, tab = 'overview') {
 }
 async function patchKid(body) { S.kid = await api('/api/coach/kids/' + S.kid.id, { method: 'PATCH', body }); await refreshKids(); }
 
-const TABS = [['overview', '📈 Überblick'], ['lessons', '🗓️ Stunden'], ['goals', '🎯 Förderziele'], ['unlock', '🔓 Freischalten'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '💬 Nachrichten'], ['notes', '📝 Notizen'], ['profile', '👤 Profil'], ['report', '📄 Elternbericht']];
+const TABS = [['overview', '📈 Überblick'], ['lessons', '🗓️ Stunden'], ['goals', '🎯 Förderziele'], ['unlock', '🗺️ Lernplan'], ['errors', '🎯 Fehler-Radar'], ['mood', '💛 Gefühls-Kompass'], ['words', '📚 Lernwörter'], ['radio', '💬 Nachrichten'], ['notes', '📝 Notizen'], ['profile', '👤 Profil'], ['report', '📄 Elternbericht']];
 function renderKid(main) {
   const k = S.kid;
   main.innerHTML = `
@@ -358,21 +358,51 @@ function tabOverview(el, k) {
 
 function tabUnlock(el, k) {
   const sel = new Set(k.unlocked);
+  const stufe = k.profile?.stufe;
+  const hasStufe = stufe !== '' && stufe != null;
+  let plan = new Set(k.plan?.length ? k.plan : GALAXIES.map(g => g.id));
+  const byLevel = LEVELS.map(l => ({ l, gs: GALAXIES.filter(g => g.level === l.id) }));
+  const fitTag = g => !hasStufe ? '' : g.stufe < Number(stufe) - 1 ? '<span class="fit easy">leichter</span>' : g.stufe > Number(stufe) ? '<span class="fit hard">schwerer</span>' : '<span class="fit ok">passt zur Klasse</span>';
   el.innerHTML = `
     <div class="card">
-      <h2>Welche Themen bearbeitet ihr gerade?</h2>
-      <p class="muted" style="margin-top:-6px">Angehakte Planeten sind für ${esc(k.name)} offen (mit 🚩 markiert). Gespielte Planeten bleiben immer offen.${S.lite ? ' Nach dem Speichern bekommst du einen neuen Link, den du den Eltern schickst.' : ''}</p>
+      <h2>🗺️ Lernplan: Welche Themen braucht ${esc(k.name)}?</h2>
+      <p class="muted" style="margin-top:-6px">Nur angehakte Themen-Galaxien erscheinen in der App von ${esc(k.name)}. ${hasStufe ? `Vorschlag für <b>${esc(stufeLabel(stufe))}</b> – du kannst leichtere oder schwierigere Themen jederzeit dazunehmen.` : 'Tipp: Trag im Profil die Klasse ein, dann schlage ich passende Themen vor.'}</p>
+      <div class="row" style="margin-bottom:6px">${hasStufe ? `<button class="btn small" id="suggest">✨ Passend zur Klasse auswählen</button>` : `<button class="btn small" id="to-prof">🎒 Klasse eintragen</button>`}<button class="btn small" id="all-g">Alle Themen</button></div>
+      ${k.placement ? `<p class="muted" style="font-size:.88em">🧭 Einstufungstest: ${Object.entries(k.placement).map(([sub, pl]) => { const g = GALAXIES.find(x => x.id === pl.recommend); return g ? `${sub === 'mathe' ? 'Mathe' : 'Deutsch'} → Start mit ${g.icon} ${esc(g.name)}` : ''; }).filter(Boolean).join(' · ')}</p>` : ''}
+      <div class="plan-grid">${byLevel.map(({ l, gs }) => `<div><h3 class="plan-h">${l.icon} ${esc(l.name)}</h3>${gs.map(g => `
+        <label class="plan-item"><input type="checkbox" data-g="${g.id}" ${plan.has(g.id) ? 'checked' : ''}>
+          <span><b>${g.icon} ${esc(g.name)}</b><small>${esc(g.grade)} · ${esc(g.desc)}</small></span>${fitTag(g)}</label>`).join('')}</div>`).join('')}</div>
+    </div>
+    <div class="card">
+      <h2>🔓 Einzelne Planeten freischalten</h2>
+      <p class="muted" style="margin-top:-6px">Angehakte Planeten sind offen (in der App mit 🚩). Der erste Planet jedes gewählten Themas wird automatisch geöffnet. Gespielte Planeten bleiben immer offen.${S.lite ? ' Nach dem Speichern bekommst du einen neuen Link für die Eltern.' : ''}</p>
       <label class="switch"><input type="checkbox" id="auto" ${k.autoAdvance ? 'checked' : ''}> <span><strong>Automatisch weiterschalten</strong> – nach einem geschafften Planeten öffnet sich der nächste von selbst</span></label>
-      ${[...GALAXIES].sort((a, b) => LEVELS.findIndex(l => l.id === a.level) - LEVELS.findIndex(l => l.id === b.level)).map(g => `<h3 style="font-size:1em;margin-top:20px">${g.icon} ${esc(g.name)} <span class="tag">${esc(LEVELS.find(l => l.id === g.level)?.name || "")}</span> <button class="btn small" data-all="${g.id}">alle</button> <button class="btn small" data-none="${g.id}">keine</button></h3>
-        <div class="planet-grid">${planetsOf(g.id).map(p => `<label class="pcheck"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span><div class="pn">${esc(p.name)}</div><div class="pt">${esc(p.topic)}</div></span><span class="stars">${k.progress[p.id] ? starsHtml(k.progress[p.id].bestStars) : ''}</span></label>`).join('')}</div>`).join('')}
-      <div class="row" style="margin-top:18px"><button class="btn primary" id="save">Speichern</button><span class="muted" id="saved"></span></div>
+      <div id="pgrid"></div>
+      <div class="row" style="margin-top:18px"><button class="btn primary" id="save">Lernplan speichern</button><span class="muted" id="saved"></span></div>
     </div>`;
-  el.querySelectorAll('[data-all]').forEach(b => b.onclick = () => el.querySelectorAll('.pcheck input').forEach(i => { if (PLANET_BY_ID[i.value].galaxy === b.dataset.all) i.checked = true; }));
-  el.querySelectorAll('[data-none]').forEach(b => b.onclick = () => el.querySelectorAll('.pcheck input').forEach(i => { if (PLANET_BY_ID[i.value].galaxy === b.dataset.none) i.checked = false; }));
+  const grid = el.querySelector('#pgrid');
+  const drawPlanets = () => {
+    grid.querySelectorAll('.pcheck input').forEach(i => i.checked ? sel.add(i.value) : sel.delete(i.value)); // Häkchen beim Neuzeichnen behalten
+    const gs = GALAXIES.filter(g => plan.has(g.id));
+    grid.innerHTML = gs.map(g => `<h3 style="font-size:1em;margin-top:20px">${g.icon} ${esc(g.name)} <button class="btn small" data-all="${g.id}">alle</button> <button class="btn small" data-none="${g.id}">keine</button></h3>
+      <div class="planet-grid">${planetsOf(g.id).map(p => `<label class="pcheck"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span><div class="pn">${esc(p.name)}</div><div class="pt">${esc(p.topic)}</div></span><span class="stars">${k.progress[p.id] ? starsHtml(k.progress[p.id].bestStars) : ''}</span></label>`).join('')}</div>`).join('') || '<p class="muted">Wähle oben mindestens ein Thema aus.</p>';
+    grid.querySelectorAll('[data-all]').forEach(b => b.onclick = () => grid.querySelectorAll('.pcheck input').forEach(i => { if (PLANET_BY_ID[i.value].galaxy === b.dataset.all) i.checked = true; }));
+    grid.querySelectorAll('[data-none]').forEach(b => b.onclick = () => grid.querySelectorAll('.pcheck input').forEach(i => { if (PLANET_BY_ID[i.value].galaxy === b.dataset.none) i.checked = false; }));
+  };
+  const setPlan = ids => { plan = new Set(ids); el.querySelectorAll('.plan-item input').forEach(i => i.checked = plan.has(i.dataset.g)); for (const id of planUnlocks([...plan])) sel.add(id); drawPlanets(); };
+  el.querySelectorAll('.plan-item input').forEach(i => i.onchange = () => { if (i.checked) { plan.add(i.dataset.g); sel.add(planetsOf(i.dataset.g)[0].id); } else plan.delete(i.dataset.g); drawPlanets(); });
+  el.querySelector('#suggest')?.addEventListener('click', () => setPlan(suggestPlan(stufe)));
+  el.querySelector('#all-g').onclick = () => setPlan(GALAXIES.map(g => g.id));
+  el.querySelector('#to-prof')?.addEventListener('click', () => { S.tab = 'profile'; renderKid(document.getElementById('main')); });
+  drawPlanets();
   el.querySelector('#save').onclick = async () => {
-    await patchKid({ unlocked: [...el.querySelectorAll('.pcheck input:checked')].map(i => i.value), autoAdvance: el.querySelector('#auto').checked });
+    if (!plan.size) { toast('Bitte mindestens ein Thema auswählen.'); return; }
+    const all = plan.size === GALAXIES.length;
+    grid.querySelectorAll('.pcheck input').forEach(i => i.checked ? sel.add(i.value) : sel.delete(i.value));
+    const unlocked = [...new Set([...sel, ...planUnlocks([...plan])])];
+    await patchKid({ unlocked, autoAdvance: el.querySelector('#auto').checked, plan: all ? [] : [...plan] });
     if (S.lite) { el.querySelector('#saved').textContent = '✓ Gespeichert'; shareLink(S.kid); }
-    else el.querySelector('#saved').textContent = '✓ Gespeichert – beim nächsten Start sieht das Kind die neuen Planeten.';
+    else el.querySelector('#saved').textContent = '✓ Gespeichert – beim nächsten Start sieht das Kind seinen Lernplan.';
   };
 }
 

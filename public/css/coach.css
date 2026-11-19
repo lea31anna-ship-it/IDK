@@ -277,3 +277,14 @@
 .lv-coach .mr-last { font-size: .88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lv-coach .mr-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: .78em; color: var(--muted); white-space: nowrap; }
 .lv-coach .msg-row .badge { background: var(--brand); color: #fff; border-radius: 999px; padding: 1px 8px; font-weight: 700; }
+/* Lernplan */
+.lv-coach .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.lv-coach .plan-h { font-size: 1em; margin: 10px 0 6px; }
+.lv-coach .plan-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; cursor: pointer; background: var(--surface); }
+.lv-coach .plan-item:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+.lv-coach .plan-item span { display: flex; flex-direction: column; min-width: 0; }
+.lv-coach .plan-item small { color: var(--muted); font-size: .8em; }
+.lv-coach .fit { font-size: .72em; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.lv-coach .fit.ok { background: var(--good-bg); color: var(--good); }
+.lv-coach .fit.easy { background: var(--surface-2); color: var(--text-2); }
+.lv-coach .fit.hard { background: var(--warn-bg); color: var(--warn); }

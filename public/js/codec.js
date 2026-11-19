@@ -167,9 +167,10 @@ export const linkExtra = (k, settings = {}) => {
   const r = k.reward?.text ? [k.reward.goal || 5, k.reward.text] : null;
   const c = settings.phone || settings.email ? [settings.coachName || '', settings.phone || '', settings.email || ''] : null; // Kontakt der Coachin für „Nachricht an Coachin“
   const st = k.profile?.stufe; const g = st === '' || st == null || Number.isNaN(Number(st)) ? null : Number(st); // Klasse -> Einstufungstest passt sich an
-  return w.length || r || c || g != null ? { w, r, ...(c ? { c } : {}), ...(g != null ? { g } : {}) } : null;
+  const p = (k.plan || []).length ? k.plan : null; // Lernplan: nur diese Themen-Galaxien zeigen
+  return w.length || r || c || g != null || p ? { w, r, ...(c ? { c } : {}), ...(g != null ? { g } : {}), ...(p ? { p } : {}) } : null;
 };
-export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null, stufe: Number.isInteger(x?.g) && x.g >= 0 && x.g <= 8 ? x.g : null, contact: x?.c ? { name: String(x.c[0] || '').slice(0, 60), phone: String(x.c[1] || '').slice(0, 40), email: String(x.c[2] || '').slice(0, 120) } : null });
+export const unpackExtra = x => ({ wordLists: (x?.w || []).map(([name, words], i) => ({ id: 'l' + i, name: String(name).slice(0, 40), words: (words || []).map(String).slice(0, 60) })), reward: x?.r ? { goal: Number(x.r[0]) || 5, text: String(x.r[1]).slice(0, 120) } : null, plan: Array.isArray(x?.p) ? x.p.map(String).slice(0, 40) : null, stufe: Number.isInteger(x?.g) && x.g >= 0 && x.g <= 8 ? x.g : null, contact: x?.c ? { name: String(x.c[0] || '').slice(0, 60), phone: String(x.c[1] || '').slice(0, 40), email: String(x.c[2] || '').slice(0, 120) } : null });
 export function parseKidHash(hash) {
   const m = /^#?k-([a-z]+)-([0-9a-z]{4,60})(?:-m([0-9a-z]+))?(?:-x([0-9a-z]+))?$/i.exec(hash || '');
   if (!m) return null;
