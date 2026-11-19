@@ -147,7 +147,7 @@ function renderStart() {
         Kein Zeitdruck, keine Werbung, keine Daten in der freien Version.</p>
         ${i.contactUrl ? `<p style="margin:.6em 0 0"><a href="${esc(i.contactUrl)}" target="_blank" rel="noopener">Kontakt & Beratung →</a></p>` : ''}
       </div>` : ''}
-      <a class="coach-link" href="/coach">Bereich für Coaches</a>
+      ${state.server ? '<a class="coach-link" href="/coach">Bereich für Coaches</a>' : ''}
     </section>`;
   document.getElementById('go-public').onclick = () => { state.mode = 'public'; state.progress = store.get('public_progress', {}); renderMap(); };
   document.getElementById('open-settings').onclick = openSettings;
@@ -533,7 +533,7 @@ function openSettings() {
   applySettings();
   try {
     state.info = await apiCall('/api/info');
-    state.server = true;
+    state.server = state.info.serverMode === true; // ohne eigenen Server (z. B. statisch gehostet) nur freie Version
   } catch { state.server = false; state.info = {}; }
   const code = store.get('code', null);
   if (state.server && code) {
