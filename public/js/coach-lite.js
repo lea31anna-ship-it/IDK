@@ -5,7 +5,7 @@ import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName, encodeExtra, linkExtra } from './codec.js';
 import { parseWordInput } from './words.js';
-import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog } from './org-model.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog, contactTimeline } from './org-model.js';
 
 let KID_APP_URL = document.querySelector('meta[name="sh-kid-app"]')?.content || '';
 const MAX_SESSIONS = 400, MAX_ERRORS = 600;
@@ -87,6 +87,7 @@ function summary(k) {
     mood: moods.length ? Math.round(10 * moods.reduce((a, b) => a + b, 0) / moods.length) / 10 : null,
     unreadMessages: 0, recentSessions: k.sessions.filter(s => daysAgo(s.ts) < 14),
     lessons: k.lessons || [], rate: k.profile?.rate ?? '', focus: k.profile?.focus || [], parent: k.profile?.parent || '',
+    contacts: contactTimeline(k).slice(0, 3), contactCount: contactTimeline(k).length, phone: k.profile?.phone || '', email: k.profile?.email || '', stufe: k.profile?.stufe ?? '',
   };
 }
 

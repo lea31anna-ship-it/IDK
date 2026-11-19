@@ -606,3 +606,6 @@ body[data-space="blau"] .topbar, body[data-space="gruen"] .topbar, body[data-spa
 .gx-sticky.swap .gs-icon { animation: gx-icon-in .7s cubic-bezier(.2, 1.5, .4, 1); }
 @keyframes gx-swap { 0% { transform: translateY(-14px) scale(.96); filter: brightness(1.8); } 60% { transform: translateY(2px); } 100% { transform: none; filter: none; } }
 @media (prefers-reduced-motion: reduce) { .map .gx-head { opacity: 1 !important; transform: none !important; } .gx-sticky.swap, .gx-head .gx-icon, .gx-stars i { animation: none !important; } }
+.stufe-sel { width: 100%; font: inherit; font-size: 1em; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--panel-border); background: rgba(255,255,255,.08); color: inherit; margin-top: 6px; }
+.stufe-sel option { color: #111; }
+.pl-annahme { opacity: .75; }

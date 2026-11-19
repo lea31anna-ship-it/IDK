@@ -8,7 +8,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED, ERROR_TYPES, starsFor, TASKS_PER_MISSION, levelStars } from './public/js/curriculum.js';
-import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog } from './public/js/org-model.js';
+import { cleanProfile, cleanGoals, cleanLessons, cleanOrg, cleanContactLog, contactTimeline } from './public/js/org-model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -112,7 +112,7 @@ function kidPublic(k) {
   return {
     name: k.name, avatar: k.avatar, code: k.code, unlocked: k.unlocked, autoAdvance: k.autoAdvance,
     progress: k.progress, messages: k.messages.filter(m => !m.read).map(({ id, text, ts }) => ({ id, text, ts })),
-    wordLists: k.wordLists || [], reward: k.reward || null, contact: { name: db.settings.coachName, phone: db.settings.phone || '', email: db.settings.email || '' },
+    wordLists: k.wordLists || [], reward: k.reward || null, stufe: k.profile?.stufe === '' || k.profile?.stufe == null ? null : Number(k.profile.stufe), contact: { name: db.settings.coachName, phone: db.settings.phone || '', email: db.settings.email || '' },
     mailbox: k.messages.slice(-30).map(({ text, ts }) => ({ text, ts })),
     coachName: db.settings.coachName, practiceName: db.settings.practiceName,
   };
@@ -130,6 +130,7 @@ function kidSummary(k) {
     mood: moods.length ? Math.round(10 * moods.reduce((a, b) => a + b, 0) / moods.length) / 10 : null,
     unreadMessages: k.messages.filter(m => !m.read).length,
     lessons: k.lessons || [], rate: k.profile?.rate ?? '', focus: k.profile?.focus || [], parent: k.profile?.parent || '',
+    contacts: contactTimeline(k).slice(0, 3), contactCount: contactTimeline(k).length, phone: k.profile?.phone || '', email: k.profile?.email || '', stufe: k.profile?.stufe ?? '',
   };
 }
 

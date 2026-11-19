@@ -1,7 +1,7 @@
 // Organisation der Coachin: Kalender, Stundenprotokoll, Abrechnung, Aufgaben, Datensicherung,
 // Kind-Profil und Förderziele. Wird vom Coach-Bereich (coach.js) eingebunden.
-import { APP_NAME, ERROR_TYPES } from './curriculum.js';
-import { FOCUS, LESSON_STATUS, GOAL_STATUS, PLACES, uidLocal, lessonRate } from './org-model.js';
+import { APP_NAME, ERROR_TYPES, SCHULSTUFEN, SCHULFORMEN } from './curriculum.js';
+import { FOCUS, LESSON_STATUS, GOAL_STATUS, PLACES, PAY_METHODS, uidLocal, lessonRate } from './org-model.js';
 
 let C; // Kontext aus coach.js: { S, api, esc, ask, toast, showCopy, copyText, host, refreshKids, render, openKid, patchKid, saveFile }
 export function initOrg(ctx) { C = ctx; }
@@ -308,30 +308,84 @@ export function renderBackup(main) {
   };
 }
 
-// ---------- Kind: Profil ----------
+// ---------- Kind: Datenblatt (Profil) ----------
+const fld = (id, label, val, attrs = '', wide = false) => `<div class="field" ${wide ? 'style="grid-column:1/-1"' : ''}><label for="${id}">${label}</label><input id="${id}" type="text" value="${esc(val ?? '')}" ${attrs}></div>`;
+/** Formular-Abschnitte des Datenblatts – genutzt beim Anlegen und im Profil */
+export function datasheetHtml(p = {}, { open = true } = {}) {
+  return `
+    <fieldset class="ds"><legend>🎒 Schule</legend><div class="form-grid">
+      <div class="field"><label for="p-stufe">Klasse / Schulstufe <span class="req">wichtig</span></label><select id="p-stufe"><option value="">– bitte wählen –</option>${SCHULSTUFEN.map(x => `<option value="${x.n}" ${String(p.stufe) === String(x.n) ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></div>
+      <div class="field"><label for="p-stype">Schulform</label><select id="p-stype"><option value="">–</option>${SCHULFORMEN.map(x => `<option ${p.schoolType === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+      ${fld('p-school', 'Schule (Name, Ort)', p.school, 'maxlength="80" placeholder="z. B. VS Musterstraße, Wien"')}
+      ${fld('p-grade', 'Klasse (Bezeichnung)', p.grade, 'maxlength="20" placeholder="z. B. 3b"')}
+      ${fld('p-teacher', 'Lehrer/in', p.teacher, 'maxlength="80"')}
+    </div><p class="muted ds-hint">Die Klasse wird auch in den Link des Kindes übernommen: Der Einstufungstest startet dann auf dem passenden Niveau.</p></fieldset>
+    <details class="ds" ${open ? 'open' : ''}><summary>👧 Kind</summary><div class="form-grid">
+      ${fld('p-last', 'Nachname des Kindes', p.lastName, 'maxlength="60"')}
+      <div class="field"><label for="p-birth">Geburtsdatum</label><input id="p-birth" type="date" value="${p.birth || ''}"></div>
+      ${fld('p-address', 'Adresse des Kindes', p.address, 'maxlength="200" placeholder="Straße, PLZ Ort"', true)}
+    </div></details>
+    <details class="ds" ${open ? 'open' : ''}><summary>👪 Eltern / Erziehungsberechtigte</summary><div class="form-grid">
+      ${fld('p-parent', 'Name Elternteil 1', p.parent, 'maxlength="80"')}
+      ${fld('p-phone', 'Telefon Elternteil 1', p.phone, 'maxlength="40" inputmode="tel" placeholder="z. B. 0664 1234567"')}
+      ${fld('p-parent2', 'Name Elternteil 2', p.parent2, 'maxlength="80"')}
+      ${fld('p-phone2', 'Telefon Elternteil 2', p.phone2, 'maxlength="40" inputmode="tel"')}
+      ${fld('p-email', 'E-Mail', p.email, 'maxlength="120" inputmode="email"')}
+      <div class="field" style="grid-column:1/-1"><label class="switch"><input type="checkbox" id="p-same" ${!p.parentAddress ? 'checked' : ''}> Eltern wohnen an derselben Adresse wie das Kind</label></div>
+      <div class="field ${!p.parentAddress ? 'hidden' : ''}" id="p-paddr-f" style="grid-column:1/-1"><label for="p-paddr">Adresse der Eltern</label><input id="p-paddr" type="text" maxlength="200" value="${esc(p.parentAddress || '')}"></div>
+    </div></details>
+    <details class="ds" ${open ? 'open' : ''}><summary>💶 Bezahlung</summary><div class="form-grid">
+      <div class="field"><label for="p-pay">Zahlungsart</label><select id="p-pay"><option value="">–</option>${PAY_METHODS.map(x => `<option ${p.payMethod === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
+      <div class="field"><label for="p-rate">Honorar pro Einheit (€)</label><input id="p-rate" type="number" min="0" step="0.5" value="${p.rate ?? ''}" placeholder="Standard: ${C.S.org?.rate ?? ''} €"></div>
+      ${fld('p-iban', 'IBAN der Eltern', p.iban, 'maxlength="40" autocomplete="off" placeholder="AT.."')}
+      ${fld('p-holder', 'Kontoinhaber/in', p.accountHolder, 'maxlength="80"')}
+      ${fld('p-invoice', 'Rechnung an (falls abweichend)', p.invoiceTo, 'maxlength="200" placeholder="Name, Adresse"', true)}
+    </div><p class="err" id="p-iban-e"></p></details>
+    <details class="ds" ${open ? 'open' : ''}><summary>🧩 Förderung</summary><div class="form-grid">
+      <div class="field"><label for="p-since">Im Coaching seit</label><input id="p-since" type="date" value="${p.since || ''}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Förderschwerpunkte</label><div class="chips">${FOCUS.map(f => `<label class="chip-check"><input type="checkbox" value="${esc(f)}" ${(p.focus || []).includes(f) ? 'checked' : ''}> ${esc(f)}</label>`).join('')}</div></div>
+      <div class="field" style="grid-column:1/-1"><label for="p-notes">Weitere Infos (Diagnosen, Befunde, Besonderheiten)</label><textarea id="p-notes" maxlength="1000" style="min-height:70px">${esc(p.notes || '')}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label class="switch"><input type="checkbox" id="p-consent" ${p.consent ? 'checked' : ''}> Einverständnis der Eltern zur Datenverarbeitung liegt vor</label></div>
+    </div></details>`;
+}
+/** IBAN-Prüfung (Prüfziffer nach ISO 13616); leer ist erlaubt */
+export function ibanOk(raw) {
+  const v = String(raw || '').replace(/\s+/g, '').toUpperCase(); if (!v) return true;
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v)) return false;
+  const r = (v.slice(4) + v.slice(0, 4)).replace(/[A-Z]/g, c => c.charCodeAt(0) - 55);
+  let m = 0; for (const d of r) m = (m * 10 + Number(d)) % 97; return m === 1;
+}
+export const fmtIban = v => String(v || '').replace(/\s+/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim();
+export function bindDatasheet(el) {
+  const same = el.querySelector('#p-same');
+  same.onchange = () => { el.querySelector('#p-paddr-f').classList.toggle('hidden', same.checked); if (same.checked) el.querySelector('#p-paddr').value = ''; };
+  const ib = el.querySelector('#p-iban');
+  ib.onblur = () => { ib.value = fmtIban(ib.value); el.querySelector('#p-iban-e').textContent = ibanOk(ib.value) ? '' : 'Diese IBAN scheint nicht zu stimmen – bitte prüfen.'; };
+}
+export function readDatasheet(el, base = {}) {
+  const v = id => el.querySelector(id)?.value ?? '';
+  return { ...base, stufe: v('#p-stufe'), schoolType: v('#p-stype'), school: v('#p-school'), grade: v('#p-grade'), teacher: v('#p-teacher'),
+    lastName: v('#p-last'), birth: v('#p-birth'), address: v('#p-address'),
+    parent: v('#p-parent'), phone: v('#p-phone'), parent2: v('#p-parent2'), phone2: v('#p-phone2'), email: v('#p-email'),
+    parentAddress: el.querySelector('#p-same')?.checked ? '' : v('#p-paddr'),
+    payMethod: v('#p-pay'), rate: v('#p-rate'), iban: fmtIban(v('#p-iban')), accountHolder: v('#p-holder'), invoiceTo: v('#p-invoice'),
+    since: v('#p-since'), focus: [...el.querySelectorAll('.chips input:checked')].map(i => i.value), notes: v('#p-notes'), consent: !!el.querySelector('#p-consent')?.checked };
+}
 export function tabProfile(el, k) {
   const p = k.profile || {};
-  el.innerHTML = `<div class="card"><h2>👤 Profil von ${esc(k.name)}</h2>
-    <form id="pf" class="form-grid">
-      <div class="field"><label for="p-parent">Erziehungsberechtigte</label><input id="p-parent" type="text" maxlength="80" value="${esc(p.parent || '')}"></div>
-      <div class="field"><label for="p-phone">Telefon</label><input id="p-phone" type="text" maxlength="40" value="${esc(p.phone || '')}"></div>
-      <div class="field"><label for="p-email">E-Mail</label><input id="p-email" type="text" maxlength="120" value="${esc(p.email || '')}"></div>
-      <div class="field"><label for="p-school">Schule</label><input id="p-school" type="text" maxlength="80" value="${esc(p.school || '')}"></div>
-      <div class="field"><label for="p-grade">Klasse</label><input id="p-grade" type="text" maxlength="20" value="${esc(p.grade || '')}" placeholder="z. B. 3b"></div>
-      <div class="field"><label for="p-since">Im Coaching seit</label><input id="p-since" type="date" value="${p.since || ''}"></div>
-      <div class="field"><label for="p-rate">Honorar pro Einheit (€)</label><input id="p-rate" type="number" min="0" step="0.5" value="${p.rate ?? ''}" placeholder="Standard: ${C.S.org?.rate ?? ''} €"></div>
-      <div class="field" style="grid-column:1/-1"><label>Förderschwerpunkte</label><div class="chips">${FOCUS.map(f => `<label class="chip-check"><input type="checkbox" value="${esc(f)}" ${(p.focus || []).includes(f) ? 'checked' : ''}> ${esc(f)}</label>`).join('')}</div></div>
-      <div class="field" style="grid-column:1/-1"><label class="switch"><input type="checkbox" id="p-consent" ${p.consent ? 'checked' : ''}> Einverständnis der Eltern zur Datenverarbeitung liegt vor</label></div>
-      <div><button class="btn primary">Speichern</button> <span class="muted" id="p-st"></span></div>
+  const quick = [[p.phone, '📞'], [p.phone2, '📞'], [p.email, '✉️'], [p.iban, '🏦']].filter(([x]) => x);
+  el.innerHTML = `<div class="card"><h2>👤 Datenblatt von ${esc(k.name)}${p.lastName ? ' ' + esc(p.lastName) : ''}</h2>
+    ${quick.length ? `<p class="muted">Schnell kopieren: ${quick.map(([x, i]) => `<button class="btn small" data-copy="${esc(x)}">${i} ${esc(x)}</button>`).join(' ')}</p>` : ''}
+    <form id="pf">${datasheetHtml(p)}
+      <div class="row" style="margin-top:12px"><button class="btn primary">Speichern</button> <span class="muted" id="p-st"></span></div>
     </form>
-    ${p.phone || p.email ? `<p class="muted">Schnell kopieren: ${p.phone ? `<button class="btn small" data-copy="${esc(p.phone)}">📞 ${esc(p.phone)}</button>` : ''} ${p.email ? `<button class="btn small" data-copy="${esc(p.email)}">✉️ ${esc(p.email)}</button>` : ''}</p>` : ''}
-    <p class="muted" style="margin-bottom:0">Datenschutz: Diese Angaben sind nur für dich sichtbar und gelangen nie in die Kinder-App oder in Links.</p></div>`;
+    <p class="muted" style="margin-bottom:0">🔒 Datenschutz: Diese Angaben sind nur für dich sichtbar. In die Kinder-App bzw. den Link kommt nur die Klassenstufe (für den Einstufungstest) – keine Namen, Adressen oder Bankdaten.</p></div>`;
   el.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => C.copyText(b.dataset.copy));
+  bindDatasheet(el);
   el.querySelector('#pf').onsubmit = async e => {
     e.preventDefault();
-    const v = id => el.querySelector(id).value;
-    await C.patchKid({ profile: { parent: v('#p-parent'), phone: v('#p-phone'), email: v('#p-email'), school: v('#p-school'), grade: v('#p-grade'), since: v('#p-since'), rate: v('#p-rate'), focus: [...el.querySelectorAll('.chips input:checked')].map(i => i.value), consent: el.querySelector('#p-consent').checked } });
-    el.querySelector('#p-st').textContent = '✓ Gespeichert';
+    await C.patchKid({ profile: readDatasheet(el) });
+    el.querySelector('#p-st').textContent = '✓ Gespeichert' + (C.S.lite && String(p.stufe ?? '') !== String(C.S.kid.profile?.stufe ?? '') ? ' – Klasse geändert: bitte den Eltern einen neuen Link schicken (🔗 Link für Eltern).' : '');
   };
 }
 

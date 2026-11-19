@@ -1,4 +1,4 @@
-import { PLACEMENT, evaluatePlacement, PLACEMENT_STATUS, PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, galaxyDone } from './curriculum.js';
+import { placementPlan, SCHULSTUFEN, stufeLabel, evaluatePlacement, PLACEMENT_STATUS, PLANET_LEVELS, levelStars, levelOpen, nextLevel, stationsOf, stationOpen, STATION_TARGET, chainOf, galaxyDone } from './curriculum.js';
 import { APP_NAME, LEVELS, GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf, stationQuiz } from './exercises.js';
 import { decodeKidCode, parseKidHash, encodeReport, decodeExtra, unpackExtra, AVATARS } from './codec.js';
@@ -214,7 +214,7 @@ function offlineLogin(c, message = null, extra = null) {
   const all = offlineKids();
   const k = all[c.id] || { id: c.id, progress: {}, sessions: [], errors: [], seen: [] };
   Object.assign(k, { name: c.name, avatar: c.avatar, code: c.code, unlocked: c.unlocked, autoAdvance: c.autoAdvance });
-  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; if (extra.contact) k.contact = extra.contact; } // nur aus einem Link der Coachin
+  if (extra) { k.wordLists = extra.wordLists; k.reward = extra.reward; if (extra.contact) k.contact = extra.contact; if (extra.stufe != null) k.stufe = extra.stufe; } // nur aus einem Link der Coachin
   k.mailbox ||= [];
   k.inbox ||= [];
   if (message) {
@@ -623,6 +623,9 @@ function runMission(p, moodB) {
       if (!m.active || runMission.current !== m) return;
       m.i++;
       if (p.lives && (m.correct >= p.target || m.lives <= 0)) return finish();
+      if (p.placement && p.easier?.length && !m.wentDown && m.results.length === 4 && m.results.filter(x => !x.ok).length >= 2) { // Anfang zu schwer -> leichtere Aufgaben einschieben
+        m.wentDown = true; tasks.splice(m.i, 0, ...p.easier); const down = new Set(p.easier.map(x => x.topic)); p.assumed = (p.assumed || []).filter(t => !down.has(t));
+      }
       if (p.placement) { const last = m.results.slice(-6); if (last.filter(x => !x.ok).length >= 4) return finish(); } // zu schwer -> freundlich beenden
       if (m.i < tasks.length) renderTask(); else finish();
     };
@@ -747,23 +750,34 @@ function runMission(p, moodB) {
   };
 }
 // ---------- Einstufungstest ----------
+// Klasse des Kindes: von der Coachin (Link/Server) oder selbst gewählt
+function kidStufe() {
+  if (state.mode === 'kid') { const k = state.offline ? offlineKids()[state.kid.id] : state.kid; if (k?.stufe != null && k.stufe !== '') return Number(k.stufe); }
+  const own = getProfile().stufe; return own == null || own === '' ? null : Number(own);
+}
 function startPlacement(subject) {
-  const items = PLACEMENT[subject];
+  const fromCoach = state.mode === 'kid' && (() => { const k = state.offline ? offlineKids()[state.kid.id] : state.kid; return k?.stufe != null && k.stufe !== ''; })();
+  let stufe = kidStufe();
   const s = openModal(`<div style="text-align:center"><div class="st-big">🧭</div><h2>Einstufungstest ${subject === 'mathe' ? 'Mathe' : 'Deutsch'}</h2>
-    <p>Ein kurzes Quiz mit Aufgaben von leicht bis schwer. Es ist <b>keine Prüfung</b> und es gibt keine Noten!</p>
-    <p class="who-sub">Wenn es zu schwer wird, hört das Quiz von selbst auf. Danach siehst du, mit welchem Thema du am besten startest.${state.mode === 'kid' ? ' Deine Coachin sieht das Ergebnis auch.' : ''}</p></div>
+    <p>Ein kurzes Quiz mit Aufgaben von leicht bis schwer. Es ist <b>keine Prüfung</b> und es gibt keine Noten!</p></div>
+    ${fromCoach ? `<p class="who-sub" style="text-align:center">Passend für: <b>${esc(stufeLabel(stufe))}</b></p>` : `
+    <div class="field"><label for="pl-stufe"><b>In welche Klasse gehst du?</b></label>
+      <select id="pl-stufe" class="stufe-sel"><option value="">Weiß ich nicht – alles testen</option>${SCHULSTUFEN.map(x => `<option value="${x.n}" ${stufe === x.n ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></div>`}
+    <p class="who-sub" style="text-align:center">Wenn es zu schwer wird, hört das Quiz von selbst auf. Danach siehst du, mit welchem Thema du am besten startest.${state.mode === 'kid' ? ' Deine Coachin sieht das Ergebnis auch.' : ''}</p>
     <div class="sheet-actions"><button class="btn primary block" id="start-mission">🧭 Los geht’s</button><button class="btn block" id="close">Später</button></div>`, { center: true });
   s.querySelector('#close').onclick = () => closeModal();
+  s.querySelector('#pl-stufe')?.addEventListener('change', e => { stufe = e.target.value === '' ? null : Number(e.target.value); const pf = getProfile(); pf.stufe = stufe; saveProfile(pf); });
   s.querySelector('#start-mission').onclick = () => {
     closeModal();
-    const tasks = items.map(([topic, pid, lvl]) => ({ ...generateMission(pid, 1, lvl)[0], src: pid, topic }));
-    tasks.forEach(t => { delete t.flash; });
-    runMission({ id: 'einstufung', name: `Einstufung ${subject === 'mathe' ? 'Mathe' : 'Deutsch'}`, subject, galaxy: subject, activity: true, placement: true, tasks }, null);
+    const plan = placementPlan(subject, stufe);
+    const mk = list => list.map(([topic, pid, lvl]) => { const t = { ...generateMission(pid, 1, lvl)[0], src: pid, topic }; delete t.flash; return t; });
+    runMission({ id: 'einstufung', name: `Einstufung ${subject === 'mathe' ? 'Mathe' : 'Deutsch'}`, subject, galaxy: subject, activity: true, placement: true, stufe,
+      tasks: mk(plan.items), easier: mk(plan.easier), assumed: plan.assumed }, null);
   };
 }
 async function finishPlacement(p, m, tasks) {
-  const ev = evaluatePlacement(p.subject, m.results), ts = new Date().toISOString();
-  const pf = getProfile(); pf.placement = { ...(pf.placement || {}), [p.subject]: { ts, ...ev, correct: m.correct, asked: m.results.length } }; saveProfile(pf);
+  const ev = evaluatePlacement(p.subject, m.results, p.assumed || []), ts = new Date().toISOString();
+  const pf = getProfile(); pf.placement = { ...(pf.placement || {}), [p.subject]: { ts, ...ev, correct: m.correct, asked: m.results.length, ...(p.stufe != null ? { stufe: p.stufe } : {}) } }; saveProfile(pf);
   const durationSec = Math.round((Date.now() - m.started) / 1000);
   if (state.mode === 'kid' && state.offline) offlineRecord(k => { k.sessions.push({ ts, planetId: 'einstufung', correct: m.correct, total: m.results.length, stars: 0, moodBefore: null, moodAfter: null, tips: 0, durationSec }); for (const e of m.errors) k.errors.push({ ts, ...e }); });
   else if (state.mode === 'kid') { try { setKid(await apiCall('/api/kid/result', { method: 'POST', body: { planetId: 'einstufung', correct: m.correct, total: m.results.length, errors: m.errors, durationSec, placement: { subject: p.subject, ...pf.placement[p.subject] } } })); } catch { } }

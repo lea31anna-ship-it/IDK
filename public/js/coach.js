@@ -1,10 +1,10 @@
-import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS, PLACEMENT_STATUS } from './curriculum.js';
+import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnlocked, levelStars, PLANET_LEVELS, LEVELS, PLACEMENT_STATUS, stufeLabel } from './curriculum.js';
 
 import { APP_NAME } from './curriculum.js';
 import { TROPHIES, weekDays, activityName } from './extras.js';
 import { parseWordInput } from './words.js';
 import { waLink, mailLink } from './org-model.js';
-import { initOrg, loadOrg, overviewOrgHtml, bindOverviewOrg, renderCalendar, renderTodos, renderBilling, renderBackup, tabProfile, tabGoals, tabLessons, goalsReportHtml } from './coach-org.js';
+import { initOrg, loadOrg, overviewOrgHtml, bindOverviewOrg, renderCalendar, renderTodos, renderBilling, renderBackup, tabProfile, tabGoals, tabLessons, goalsReportHtml, datasheetHtml, readDatasheet, bindDatasheet } from './coach-org.js';
 let root = null, host = null, toastEl = null; // werden in start() gesetzt
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
@@ -126,7 +126,7 @@ function render() {
         ${S.lite?.onExit ? '<button class="btn small exit-btn" id="exit">← Zur Lern-App</button>' : ''}
         <div class="collapsible">
           <nav class="nav">
-            ${[['overview', '📊 Übersicht'], ['calendar', '📅 Kalender'], ['todos', '✅ Aufgaben'], ['billing', '💶 Abrechnung'], ['backup', '💾 Datensicherung'], ['settings', '⚙️ Einstellungen']].map(([v, l]) => `<button data-v="${v}" class="${S.view === v ? 'active' : ''}">${l}${v === 'todos' && openTodos() ? ` <span class="badge">${openTodos()}</span>` : ''}</button>`).join('')}
+            ${[['overview', '📊 Übersicht'], ['messages', '💬 Nachrichten'], ['calendar', '📅 Kalender'], ['todos', '✅ Aufgaben'], ['billing', '💶 Abrechnung'], ['backup', '💾 Datensicherung'], ['settings', '⚙️ Einstellungen']].map(([v, l]) => `<button data-v="${v}" class="${S.view === v ? 'active' : ''}">${l}${v === 'todos' && openTodos() ? ` <span class="badge">${openTodos()}</span>` : ''}</button>`).join('')}
           </nav>
           <div class="row" style="justify-content:space-between"><span class="side-section">Kinder (${S.kids.length})</span><button class="btn small primary" id="add">+ Kind</button></div>
           <input type="text" id="search" placeholder="Suchen …" aria-label="Kind suchen">
@@ -150,6 +150,7 @@ function render() {
   document.getElementById('search').oninput = e => { const q = e.target.value.toLowerCase(); root.querySelectorAll('.kid-item').forEach(b => b.classList.toggle('hidden', !b.dataset.name.includes(q))); };
   const main = document.getElementById('main');
   if (S.view === 'overview') renderOverview(main);
+  else if (S.view === 'messages') renderMessages(main);
   else if (S.view === 'settings') renderSettings(main);
   else if (S.view === 'calendar') renderCalendar(main);
   else if (S.view === 'todos') renderTodos(main);
@@ -184,7 +185,7 @@ function renderOverview(main) {
   const avgMood = moods.length ? moods.reduce((a, b) => a + b, 0) / moods.length : null;
   const alerts = S.kids.flatMap(alertsFor).sort((a, b) => ({ bad: 0, warn: 1, good: 2 }[a.lvl] - { bad: 0, warn: 1, good: 2 }[b.lvl]));
   main.innerHTML = `
-    <div class="page-head"><h1>Hallo${S.settings.coachName ? ' ' + esc(S.settings.coachName) : ''} 👋</h1><div class="row">${S.lite ? '<button class="btn" id="imp">📥 Bericht einfügen</button>' : ''}<button class="btn primary" id="add2">+ Kind anlegen</button></div></div>
+    <div class="page-head"><h1>Hallo${S.settings.coachName ? ' ' + esc(S.settings.coachName) : ''} 👋</h1><div class="row">${S.lite ? '<button class="btn" id="imp" title="Lernfortschritt aus der Kinder-App übernehmen">📥 Fortschritt übernehmen</button>' : ''}<button class="btn primary" id="add2">+ Kind anlegen</button></div></div>
     <div class="stats">
       <div class="stat"><div class="v">${S.kids.length}</div><div class="l">Kinder mit Code</div></div>
       <div class="stat"><div class="v">${activeKids}</div><div class="l">aktiv in den letzten 7 Tagen</div></div>
@@ -223,6 +224,24 @@ function renderOverview(main) {
   main.querySelectorAll('.alert').forEach(b => b.onclick = () => { const a = alerts[Number(b.dataset.i)]; openKid(a.kid, a.tab || 'overview'); });
 }
 
+// ---------- Nachrichten: alle Gespräche mit Eltern und Kindern auf einen Blick ----------
+const VIA_ICON = { whatsapp: '🟢 WhatsApp', email: '✉️ E-Mail', kopiert: '📋 kopiert', telefon: '📞 Telefon', persönlich: '🤝 persönlich', funkspruch: '📡 Funkspruch ans Kind' };
+function renderMessages(main) {
+  const kids = [...S.kids].sort((a, b) => String(b.contacts?.[0]?.ts || '').localeCompare(String(a.contacts?.[0]?.ts || '')) || a.name.localeCompare(b.name));
+  main.innerHTML = `
+    <div class="page-head"><h1>💬 Nachrichten</h1></div>
+    <div class="card info-card"><p style="margin:0">Hier siehst du alle Gespräche. Tippe auf ein Kind, um <b>den Eltern zu schreiben</b> (WhatsApp oder E-Mail) oder <b>dem Kind einen Funkspruch</b> zu schicken.</p>
+      <p class="muted" style="margin:.5em 0 0;font-size:.88em">So funktioniert es: Nachrichten an die Eltern gehen über dein WhatsApp oder E-Mail-Programm hinaus und werden hier gespeichert. Antworten der Eltern landen in deinem WhatsApp/E-Mail – trag Wichtiges mit „Antwort notieren“ ein, dann bleibt der Verlauf vollständig. Funksprüche erscheinen beim Kind in der App.</p></div>
+    <div class="msg-overview">${kids.map(k => {
+      const last = k.contacts?.[0];
+      return `<button class="msg-row" data-id="${k.id}"><span class="av">${esc(k.avatar)}</span>
+        <span class="mr-t"><b>${esc(k.name)}</b>${k.parent ? ` <small class="muted">· ${esc(k.parent)}</small>` : ''}
+          <span class="mr-last">${last ? `${last.dir === 'in' ? '⬅️' : '➡️'} ${VIA_ICON[last.via] || ''}: ${esc(last.text.slice(0, 90))}${last.text.length > 90 ? '…' : ''}` : '<span class="muted">Noch keine Nachrichten</span>'}</span></span>
+        <span class="mr-meta">${last ? fmtDateTime(last.ts) : ''}${k.contactCount ? `<span class="badge">${k.contactCount}</span>` : ''}${!k.phone && !k.email ? '<small class="muted">keine Kontaktdaten</small>' : ''}</span></button>`;
+    }).join('') || '<p class="muted">Noch keine Kinder angelegt.</p>'}</div>`;
+  main.querySelectorAll('.msg-row').forEach(b => b.onclick = () => openKid(b.dataset.id, 'radio'));
+}
+
 // ---------- Kind anlegen ----------
 function newKidDialog() {
   const d = document.createElement('dialog');
@@ -230,19 +249,25 @@ function newKidDialog() {
   d.innerHTML = `<form method="dialog" id="nk">
     <h2 style="margin-top:0">Neues Kind</h2>
     <div class="field"><label for="nk-name">Vorname (oder Spitzname)</label><input id="nk-name" type="text" maxlength="40" required></div>
-    <p class="muted" style="font-size:.85em;margin-top:-4px">Datenschutz-Tipp: Nur Vorname oder Spitzname – kein Nachname, kein Geburtsdatum.</p>
+    <p class="muted" style="font-size:.85em;margin-top:-4px">Dieser Name erscheint in der App. Nachname und alle weiteren Daten unten bleiben nur bei dir.</p>
     <div class="field"><label>Avatar</label>${avatarPicker(av)}</div>
+    <h3 style="margin:14px 0 4px">📋 Datenblatt</h3><p class="muted" style="margin:0 0 6px;font-size:.85em">Alles außer der Klasse kannst du auch später im Profil ergänzen.</p>
+    ${datasheetHtml({}, { open: false })}
     <p class="err" id="nk-err"></p>
     <div class="row"><button class="btn primary" value="ok">Anlegen & Code erzeugen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
   host.appendChild(d); d.showModal();
+  d.classList.add('wide-dialog'); bindDatasheet(d);
   d.querySelectorAll('.emoji-pick button').forEach(b => b.onclick = () => { av = b.dataset.a; d.querySelectorAll('.emoji-pick button').forEach(x => x.classList.toggle('sel', x === b)); });
   d.querySelector('form').onsubmit = async e => {
     if (e.submitter?.value === 'cancel') return;
     e.preventDefault();
     try {
+      const profile = readDatasheet(d);
       const k = await api('/api/coach/kids', { method: 'POST', body: { name: d.querySelector('#nk-name').value, avatar: av } });
+      await api('/api/coach/kids/' + k.id, { method: 'PATCH', body: { profile } });
       d.close(); await refreshKids(); await openKid(k.id, 'unlock');
-      if (S.lite) toast('Wähle die Planeten aus und speichere – dann bekommst du den Link für die Eltern.');
+      if (profile.stufe === '') toast('Tipp: Trag noch die Klasse ein (🎒 oben), damit der Einstufungstest passt.');
+      else if (S.lite) toast('Wähle die Planeten aus und speichere – dann bekommst du den Link für die Eltern.');
       else toast(`Code für ${k.name}: ${k.code}`);
     } catch (x) { d.querySelector('#nk-err').textContent = x.message; }
   };
@@ -260,10 +285,10 @@ function renderKid(main) {
   const k = S.kid;
   main.innerHTML = `
     <div class="page-head">
-      <h1>${esc(k.avatar)} ${esc(k.name)}</h1>
+      <h1>${esc(k.avatar)} ${esc(k.name)}${k.profile?.stufe !== '' && k.profile?.stufe != null ? ` <small class="stufe-tag">🎒 ${esc(stufeLabel(k.profile.stufe))}</small>` : ` <button class="btn small" id="set-stufe">🎒 Klasse eintragen</button>`}</h1>
       <div class="row">
         <span>Code: <span class="code">${esc(k.code)}</span></span>
-        ${S.lite ? '<button class="btn small primary" id="link">🔗 Link für Eltern</button><button class="btn small" id="imp">📥 Bericht einfügen</button>' : '<button class="btn small" id="copy">Kopieren</button><button class="btn small" id="card">🖨 Zugangskarte</button>'}
+        ${S.lite ? '<button class="btn small primary" id="link">🔗 Link für Eltern</button><button class="btn small" id="imp" title="Lernfortschritt aus der Kinder-App übernehmen">📥 Fortschritt übernehmen</button>' : '<button class="btn small" id="copy">Kopieren</button><button class="btn small" id="card">🖨 Zugangskarte</button>'}
         <button class="btn small" id="edit">Bearbeiten</button>
       </div>
     </div>
@@ -278,6 +303,7 @@ function renderKid(main) {
     document.getElementById('card').onclick = () => printCard(k);
   }
   document.getElementById('edit').onclick = editKidDialog;
+  document.getElementById('set-stufe')?.addEventListener('click', () => { S.tab = 'profile'; renderKid(main); setTimeout(() => main.querySelector('#p-stufe')?.focus(), 50); });
   const t = document.getElementById('tab');
   ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, words: tabWords, notes: tabNotes, lessons: tabLessons, goals: tabGoals, profile: tabProfile, report: tabReport })[S.tab](t, k);
 }
@@ -707,9 +733,13 @@ async function shareLink(k, message = '') {
 }
 function importDialog() {
   const d = document.createElement('dialog');
-  d.innerHTML = `<form method="dialog" id="impf"><h2 style="margin-top:0">📥 Bericht einfügen</h2>
-    <p class="muted">Füge den Text ein, den dir die Eltern geschickt haben (er enthält „SH1“).</p>
-    <textarea id="imp-t" style="min-height:140px"></textarea><p class="err" id="imp-e"></p>
+  d.innerHTML = `<form method="dialog" id="impf"><h2 style="margin-top:0">📥 Lernfortschritt übernehmen</h2>
+    <p>Die Kinder üben auf <b>ihrem eigenen Gerät</b>. Damit du hier Sterne, Fehler-Radar und Stimmung siehst, schicken dir die Eltern ab und zu einen <b>automatischen Fortschritts-Code</b>:</p>
+    <ol class="muted" style="margin:0 0 10px;padding-left:1.2em;font-size:.9em"><li>Kinder-App öffnen → <b>Mehr</b> → <b>„📤 Bericht an meine Coachin“</b> → Kopieren</li>
+      <li>Die Eltern schicken dir den Text per WhatsApp/E-Mail (er beginnt mit „🪐 Lerniversum-Bericht“ und enthält „SH1…“)</li>
+      <li>Du fügst den <b>ganzen Text</b> hier ein → Übernehmen</li></ol>
+    <p class="muted" style="font-size:.85em">Tipp: Im Tab „💬 Nachrichten“ gibt es eine fertige Vorlage, mit der du die Eltern um den Code bitten kannst.</p>
+    <textarea id="imp-t" style="min-height:110px" placeholder="Hier den Text der Eltern einfügen …"></textarea><p class="err" id="imp-e"></p>
     <div class="row"><button class="btn primary" value="ok">Übernehmen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
   host.appendChild(d); d.showModal();
   d.querySelector('form').onsubmit = async e => {
@@ -719,7 +749,12 @@ function importDialog() {
       const r = await api('/api/coach/import', { method: 'POST', body: { text: d.querySelector('#imp-t').value } });
       d.close(); await refreshKids(); await openKid(r.kid.id, 'overview');
       toast(r.created ? `${r.kid.name} neu angelegt und Bericht übernommen` : `Bericht von ${r.kid.name} übernommen (${r.newSessions} neue Missionen)`);
-    } catch (x) { d.querySelector('#imp-e').textContent = x.message; }
+    } catch (x) {
+      const t = d.querySelector('#imp-t').value.trim();
+      d.querySelector('#imp-e').innerHTML = t && !/SH1/.test(t)
+        ? 'Das ist kein Fortschritts-Code – hier kann man keinen eigenen Text eintragen. <br>Eigene Notizen → beim Kind im Tab „📝 Notizen“. Nachricht der Eltern → „💬 Nachrichten“ → „Antwort notieren“. Elternbericht schreiben → Tab „📄 Elternbericht“.'
+        : esc(x.message);
+    }
   };
   d.addEventListener('close', () => d.remove());
 }

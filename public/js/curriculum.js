@@ -11,19 +11,19 @@ export const LEVELS = [
 ];
 // Themen-Galaxien, je Fach in Lern-Reihenfolge (man reist von einer zur nächsten)
 export const GALAXIES = [
-  { id: 'mengen5', name: 'Mengen & Kraft der 5', short: 'Mathe', icon: '🖐️', level: 'mathe', grade: 'Grundlagen', desc: 'Mengen erfassen, Fünferbündel, Zwanzigerfeld' },
-  { id: 'zr10', name: 'Zahlenraum 10', short: 'Mathe', icon: '🔟', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Zerlegen, Plus, Minus, Ergänzen' },
-  { id: 'zue', name: 'Zehnerübergang', short: 'Mathe', icon: '🔁', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Über die 10 und zurück – Schritt für Schritt' },
-  { id: 'zr100', name: 'Zahlenraum 100', short: 'Mathe', icon: '💯', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Stellenwerte, Zahlenstrahl, Rechnen bis 100' },
-  { id: 'einmaleins', name: 'Einmaleins', short: 'Mathe', icon: '✖️', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Alle Reihen, Geteilt, gemischt' },
-  { id: 'zr1000', name: 'Zahlenraum 1000 & Sachrechnen', short: 'Mathe', icon: '🏰', level: 'mathe', grade: 'ab 3. Klasse', desc: 'Große Zahlen, Größen, Textaufgaben' },
-  { id: 'klapustri', name: 'Klapustri', short: 'Mathe', icon: '🧮', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Klammer vor Punkt vor Strich' },
-  { id: 'brueche', name: 'Brüche', short: 'Mathe', icon: '🍕', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Rechnen mit Brüchen' },
-  { id: 'zahlenwelt', name: 'Komma, Prozent & Gleichungen', short: 'Mathe', icon: '🌡️', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Dezimalzahlen, Prozent, negative Zahlen, Gleichungen' },
-  { id: 'laute', name: 'Laute & Buchstaben', short: 'Deutsch', icon: '👂', level: 'deutsch', grade: 'Grundlagen', desc: 'Laute hören und unterscheiden (b/p, d/t …)' },
-  { id: 'silben', name: 'Silben, Reime & Lesen', short: 'Deutsch', icon: '🎵', level: 'deutsch', grade: 'ab 1. Klasse', desc: 'Silben, Reime, Wörter und Sätze lesen' },
-  { id: 'rechtschreibung', name: 'Rechtschreibung', short: 'Deutsch', icon: '✍️', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Doppelmitlaute, ie, h, ä/äu, s/ss/ß, das/dass' },
-  { id: 'grammatik', name: 'Grammatik', short: 'Deutsch', icon: '🔤', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Nomen, Mehrzahl, Wortarten, Zeiten, Komma' },
+  { id: 'mengen5', stufe: 0, name: 'Mengen & Kraft der 5', short: 'Mathe', icon: '🖐️', level: 'mathe', grade: 'Grundlagen', desc: 'Mengen erfassen, Fünferbündel, Zwanzigerfeld' },
+  { id: 'zr10', stufe: 1, name: 'Zahlenraum 10', short: 'Mathe', icon: '🔟', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Zerlegen, Plus, Minus, Ergänzen' },
+  { id: 'zue', stufe: 1, name: 'Zehnerübergang', short: 'Mathe', icon: '🔁', level: 'mathe', grade: 'ab 1. Klasse', desc: 'Über die 10 und zurück – Schritt für Schritt' },
+  { id: 'zr100', stufe: 2, name: 'Zahlenraum 100', short: 'Mathe', icon: '💯', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Stellenwerte, Zahlenstrahl, Rechnen bis 100' },
+  { id: 'einmaleins', stufe: 2, name: 'Einmaleins', short: 'Mathe', icon: '✖️', level: 'mathe', grade: 'ab 2. Klasse', desc: 'Alle Reihen, Geteilt, gemischt' },
+  { id: 'zr1000', stufe: 3, name: 'Zahlenraum 1000 & Sachrechnen', short: 'Mathe', icon: '🏰', level: 'mathe', grade: 'ab 3. Klasse', desc: 'Große Zahlen, Größen, Textaufgaben' },
+  { id: 'klapustri', stufe: 5, name: 'Klapustri', short: 'Mathe', icon: '🧮', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Klammer vor Punkt vor Strich' },
+  { id: 'brueche', stufe: 5, name: 'Brüche', short: 'Mathe', icon: '🍕', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Rechnen mit Brüchen' },
+  { id: 'zahlenwelt', stufe: 6, name: 'Komma, Prozent & Gleichungen', short: 'Mathe', icon: '🌡️', level: 'mathe', grade: 'ab 5. Schulstufe', desc: 'Dezimalzahlen, Prozent, negative Zahlen, Gleichungen' },
+  { id: 'laute', stufe: 0, name: 'Laute & Buchstaben', short: 'Deutsch', icon: '👂', level: 'deutsch', grade: 'Grundlagen', desc: 'Laute hören und unterscheiden (b/p, d/t …)' },
+  { id: 'silben', stufe: 1, name: 'Silben, Reime & Lesen', short: 'Deutsch', icon: '🎵', level: 'deutsch', grade: 'ab 1. Klasse', desc: 'Silben, Reime, Wörter und Sätze lesen' },
+  { id: 'rechtschreibung', stufe: 2, name: 'Rechtschreibung', short: 'Deutsch', icon: '✍️', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Doppelmitlaute, ie, h, ä/äu, s/ss/ß, das/dass' },
+  { id: 'grammatik', stufe: 3, name: 'Grammatik', short: 'Deutsch', icon: '🔤', level: 'deutsch', grade: 'ab 2. Klasse', desc: 'Nomen, Mehrzahl, Wortarten, Zeiten, Komma' },
 ];
 /** Galaxien-Kette (gleiche Stufe, gleiches Fach) in Reiseroute-Reihenfolge */
 export const chainOf = galaxyId => { const g = GALAXIES.find(x => x.id === galaxyId); return GALAXIES.filter(x => x.level === g.level && x.short === g.short); };
@@ -233,16 +233,41 @@ export const PLACEMENT = {
     ['grammatik', 'nomen', 2], ['grammatik', 'mehrzahl', 2], ['rechtschreibung', 'slaute', 2], ['rechtschreibung', 'dasdass', 2],
     ['grammatik', 'wortarten', 2], ['grammatik', 'zeitformen', 2], ['grammatik', 'komma', 2]],
 };
+/** Schulstufen (Österreich): VS 1.–4. Klasse = Stufe 1–4, MS/AHS 1.–4. Klasse = Stufe 5–8 */
+export const SCHULSTUFEN = [
+  { n: 0, label: 'Kindergarten / Vorschule' },
+  { n: 1, label: 'Volksschule 1. Klasse' }, { n: 2, label: 'Volksschule 2. Klasse' }, { n: 3, label: 'Volksschule 3. Klasse' }, { n: 4, label: 'Volksschule 4. Klasse' },
+  { n: 5, label: 'MS / AHS 1. Klasse (5. Schulstufe)' }, { n: 6, label: 'MS / AHS 2. Klasse (6. Schulstufe)' }, { n: 7, label: 'MS / AHS 3. Klasse (7. Schulstufe)' }, { n: 8, label: 'MS / AHS 4. Klasse (8. Schulstufe)' },
+];
+export const SCHULFORMEN = ['Volksschule', 'Mittelschule (MS/NMS)', 'AHS-Unterstufe', 'Sonderschule / ASO', 'Privatschule', 'Sonstige'];
+export const stufeLabel = n => SCHULSTUFEN.find(x => x.n === Number(n))?.label || '';
+const topicStufe = id => GALAXIES.find(g => g.id === id)?.stufe ?? 0;
+/**
+ * Einstufungstest passend zur Klasse: Start etwa eine Klasse unter der aktuellen, bis eine Klasse darüber.
+ * Leichtere Aufgaben liegen als „Reserve“ bereit – klappt der Anfang nicht, wird nach unten ausgewichen.
+ * Ohne Klasse (null) gibt es den kompletten Test von ganz leicht bis schwer.
+ */
+export function placementPlan(subject, stufe = null) {
+  const all = PLACEMENT[subject];
+  if (stufe == null || stufe === '' || Number.isNaN(Number(stufe))) return { items: all, easier: [], assumed: [] };
+  const s = Number(stufe), lo = Math.max(0, s - 1), hi = s >= 5 ? 99 : s + 1;
+  let items = all.filter(([t]) => topicStufe(t) >= lo && topicStufe(t) <= hi);
+  const easier = all.filter(([t]) => topicStufe(t) < lo).reverse(); // die schwersten der leichten zuerst
+  if (items.length < 6) items = all.filter(([t]) => topicStufe(t) <= hi).slice(-Math.max(6, items.length)); // genug Aufgaben
+  const used = new Set(items.map(x => x[0]));
+  return { items, easier: easier.filter(x => !used.has(x[0])), assumed: [...new Set(easier.map(x => x[0]))].filter(t => !used.has(t)) };
+}
 /** Auswertung: je Thema sicher / teilweise / üben / offen + empfohlenes Start-Thema */
-export function evaluatePlacement(subject, results) {
+export function evaluatePlacement(subject, results, assumed = []) {
   const topics = GALAXIES.filter(g => g.level === subject).map(g => {
     const r = results.filter(x => x.topic === g.id), ok = r.filter(x => x.ok).length;
-    return { topic: g.id, asked: r.length, ok, status: !r.length ? 'offen' : ok === r.length ? 'sicher' : ok === 0 ? 'ueben' : 'teilweise' };
+    return { topic: g.id, asked: r.length, ok, status: !r.length ? (assumed.includes(g.id) ? 'annahme' : 'offen') : ok === r.length ? 'sicher' : ok === 0 ? 'ueben' : 'teilweise' };
   });
-  const rec = topics.find(t => t.status === 'ueben' || t.status === 'teilweise') || topics.find(t => t.status === 'offen') || topics[topics.length - 1];
+  const lastTested = topics.map(t => t.asked > 0).lastIndexOf(true);
+  const rec = topics.find(t => t.status === 'ueben' || t.status === 'teilweise') || topics.find((t, i) => t.status === 'offen' && i > lastTested) || topics[Math.max(0, lastTested)] || topics[0];
   return { topics, recommend: rec.topic };
 }
-export const PLACEMENT_STATUS = { sicher: { icon: '✅', label: 'sicher' }, teilweise: { icon: '🟡', label: 'teilweise' }, ueben: { icon: '🔴', label: 'noch üben' }, offen: { icon: '⚪', label: 'nicht getestet' } };
+export const PLACEMENT_STATUS = { sicher: { icon: '✅', label: 'sicher' }, teilweise: { icon: '🟡', label: 'teilweise' }, ueben: { icon: '🔴', label: 'noch üben' }, offen: { icon: '⚪', label: 'nicht getestet' }, annahme: { icon: '☑️', label: 'laut Klasse vorausgesetzt' } };
 
 // ---------- Stufen pro Planet (wie Lektionen) ----------
 export const PLANET_LEVELS = [

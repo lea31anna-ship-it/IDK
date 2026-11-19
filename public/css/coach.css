@@ -257,3 +257,23 @@
 .lv-coach .medals { white-space: nowrap; font-size: .95em; }
 .lv-coach .medals .off { filter: grayscale(1); opacity: .3; }
 .lv-coach .msg-in { background: var(--brand-soft); margin-left: 24px; }
+
+/* Datenblatt */
+.lv-coach dialog.wide-dialog { max-width: 720px; max-height: 92vh; overflow: auto; }
+.lv-coach .ds { border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px 10px; margin: 0 0 10px; }
+.lv-coach fieldset.ds legend, .lv-coach details.ds summary { font-weight: 700; padding: 0 4px; }
+.lv-coach details.ds summary { cursor: pointer; padding: 4px; }
+.lv-coach details.ds[open] summary { margin-bottom: 6px; }
+.lv-coach .ds .form-grid { margin: 0; }
+.lv-coach .ds-hint { font-size: .82em; margin: 6px 0 0; }
+.lv-coach .req { font-size: .72em; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 1px 6px; margin-left: 4px; font-weight: 700; }
+.lv-coach .stufe-tag { white-space: nowrap; font-size: .5em; font-weight: 600; background: var(--surface-2, rgba(127,127,127,.15)); border-radius: 999px; padding: 3px 10px; vertical-align: middle; }
+/* Nachrichten-Übersicht */
+.lv-coach .msg-overview { display: flex; flex-direction: column; gap: 8px; }
+.lv-coach .msg-row { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; border: 1px solid var(--border); background: var(--surface); color: inherit; border-radius: 12px; padding: 10px 12px; cursor: pointer; font: inherit; }
+.lv-coach .msg-row:hover { border-color: var(--brand); }
+.lv-coach .msg-row .av { font-size: 1.6em; }
+.lv-coach .mr-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lv-coach .mr-last { font-size: .88em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-coach .mr-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: .78em; color: var(--muted); white-space: nowrap; }
+.lv-coach .msg-row .badge { background: var(--brand); color: #fff; border-radius: 999px; padding: 1px 8px; font-weight: 700; }
