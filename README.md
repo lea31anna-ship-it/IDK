@@ -24,7 +24,7 @@ Drei Stufen mit je einer Mathe- und einer Deutsch-Galaxie (57 Planeten):
 
 **💡 Astronautin Nova:** Jede Aufgabe hat oben rechts eine Glühbirne. Ein Tipp darauf lässt die Astronautin erscheinen; sie erklärt die Aufgabe und liest den Hinweis vor. Nach einem Fehler kommt sie von selbst und zeigt die Lösung. Bleibt ein Kind 25 Sekunden hängen, wackelt die Glühbirne.
 
-**🔐 Coach-Login auf der Startseite:** Mit Server führt der Knopf zum Passwort-Login. Als claude.ai-Web-App erfolgt die Anmeldung über das Claude-Konto, und nur die Besitzerin bzw. Bearbeiter*innen kommen hinein.
+**🔐 Coach-Login auf der Startseite:** Mit Server führt der Knopf zum Passwort-Login. Als claude.ai-Web-App erfolgt die Anmeldung über das Claude-Konto, und nur die Besitzerin bzw. Bearbeiter*innen kommen hinein. Zusätzlich schützt ein **PIN** (4–6 Ziffern, gespeichert nur als PBKDF2-Hash), etwa wenn ein Kind das Tablet der Coachin benutzt. Nach 5 Fehlversuchen sperrt sich der Login für 5 Minuten (danach jeweils doppelt so lang). Bei vergessenem PIN hilft der Wiederherstellungs-Code, der beim Festlegen einmalig angezeigt wird.
 
 **Zahlen-Galaxie (Dyskalkulie), 18 Planeten**
 Punkte-Planet (Mengen auf einen Blick erfassen) → Zahlenhaus (Zerlegen) → Plus/Minus bis 10 → Plus/Minus bis 20 mit Zehnerübergang → **Einmaleins 1er- bis 10er-Reihe** → Geteilt → Einmaleins-Sonne (gemischte Abschlussprüfung)

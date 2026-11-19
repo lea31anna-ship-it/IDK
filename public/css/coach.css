@@ -173,3 +173,22 @@
 .lv-coach.embedded { position: fixed; inset: 0; z-index: 100; overflow: auto; }
 .lv-coach { letter-spacing: normal; word-spacing: normal; text-align: left; }
 .lv-coach .exit-btn { margin-bottom: 4px; }
+
+/* PIN-Sperre */
+.lv-coach .pin-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.lv-coach .pin-card { width: 100%; max-width: 360px; text-align: center; }
+.lv-coach .pin-title { font-size: 1.35em; margin: 14px 0 4px; }
+.lv-coach .pin-sub { margin: 0 0 14px; font-size: .92em; }
+.lv-coach .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 10px 0 4px; }
+.lv-coach .pin-dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--brand); }
+.lv-coach .pin-dots span.on { background: var(--brand); }
+.lv-coach .pin-dots.shake { animation: lv-shake .4s; }
+.lv-coach .pin-err { min-height: 1.4em; font-size: .9em; margin: 6px 0; }
+.lv-coach .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px auto 0; max-width: 280px; }
+.lv-coach .pin-pad button { height: 60px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); font-size: 1.4em; font-weight: 700; cursor: pointer; color: var(--text); }
+.lv-coach .pin-pad button:hover { border-color: var(--brand); }
+.lv-coach .pin-pad button:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.lv-coach .pin-pad .ok { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.lv-coach .pin-forgot { margin-top: 16px; }
+.lv-coach .pin-recovery { font: 700 1.5em ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; background: var(--brand-soft); color: var(--brand); padding: 12px; border-radius: 12px; }
+@keyframes lv-shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }

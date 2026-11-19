@@ -102,8 +102,8 @@ function render() {
           <div class="brand">🪐 <span>${APP_NAME}<small>Coach-Bereich${S.settings.coachName ? ' · ' + esc(S.settings.coachName) : ''}</small></span></div>
           <button class="btn small mobile-bar" id="menu">☰ Menü</button>
         </div>
+        ${S.lite?.onExit ? '<button class="btn small exit-btn" id="exit">← Zur Lern-App</button>' : ''}
         <div class="collapsible">
-          ${S.lite?.onExit ? '<button class="btn small exit-btn" id="exit">← Zur Lern-App</button>' : ''}
           <nav class="nav">
             <button data-v="overview" class="${S.view === 'overview' ? 'active' : ''}">📊 Übersicht</button>
             <button data-v="settings" class="${S.view === 'settings' ? 'active' : ''}">⚙️ Einstellungen</button>
@@ -564,7 +564,8 @@ function renderSettings(main) {
     ${S.lite ? `<div class="card"><h2>So funktioniert die Version ohne Server</h2>
       <ul style="margin:0;padding-left:1.2em"><li>Dieses Dashboard ist nur für dich sichtbar; deine Daten liegen in deinem Claude-Konto.</li>
       <li>Kinder bekommen von dir einen persönlichen <strong>Link</strong> (oder Code). Darin stehen die freigeschalteten Planeten und ggf. ein Funkspruch.</li>
-      <li>Der Fortschritt bleibt auf dem Gerät des Kindes. Über 📤 in der App schicken Eltern dir einen <strong>Bericht-Code</strong>, den du hier mit „📥 Bericht einfügen“ übernimmst.</li></ul></div>` : `<div class="grid2">
+      <li>Der Fortschritt bleibt auf dem Gerät des Kindes. Über 📤 in der App schicken Eltern dir einen <strong>Bericht-Code</strong>, den du hier mit „📥 Bericht einfügen“ übernimmst.</li></ul></div>
+    <div class="card"><h2>🔢 PIN</h2><p>Der Coach-Bereich ist zusätzlich zu deinem Claude-Konto mit einem PIN geschützt.</p><button class="btn" id="pinchange">PIN ändern</button></div>` : `<div class="grid2">
       <div class="card"><h2>Passwort ändern</h2>
         <form id="pf"><div class="field"><label for="op">Altes Passwort</label><input id="op" type="password" autocomplete="current-password" required></div>
         <div class="field"><label for="np">Neues Passwort (mind. 8 Zeichen)</label><input id="np" type="password" autocomplete="new-password" minlength="8" required></div>
@@ -580,6 +581,7 @@ function renderSettings(main) {
     S.settings = await api('/api/coach/settings', { method: 'PUT', body: { practiceName: main.querySelector('#pn').value, coachName: main.querySelector('#cn').value, contactUrl: main.querySelector('#cu').value, welcome: main.querySelector('#wl').value } });
     main.querySelector('#ss').textContent = '✓ Gespeichert';
   };
+  main.querySelector('#pinchange')?.addEventListener('click', () => S.lite.changePin());
   if (!S.lite) main.querySelector('#pf').onsubmit = async e => {
     e.preventDefault();
     try { await api('/api/coach/password', { method: 'POST', body: { oldPassword: main.querySelector('#op').value, newPassword: main.querySelector('#np').value } }); main.querySelector('#ps').textContent = ''; toast('Passwort geändert'); e.target.reset(); }

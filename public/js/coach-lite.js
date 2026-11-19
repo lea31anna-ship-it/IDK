@@ -1,6 +1,7 @@
 // Serverloses Coach-Dashboard: speichert Kinder privat in der Artifact-Datenbank
 // (Pfad data/users/<deine-id>/ – nur für dich lesbar). Ohne Datenbank: im Browser.
 import { start } from './coach.js';
+import { pinGate, changePin } from './coach-pin.js';
 import { PLANET_BY_ID, DEFAULT_UNLOCKED } from './curriculum.js';
 import { encodeKidCode, kidHash, decodeReport, decodeKidCode, AVATARS, cleanName, prettyName } from './codec.js';
 
@@ -35,6 +36,8 @@ async function dbStore() {
     putKid: k => col.doc('kid-' + k.id).set(JSON.parse(JSON.stringify(k))),
     delKid: id => col.doc('kid-' + id).delete(),
     putSettings: s => col.doc('settings').set(s),
+    async getPin() { const d = await col.doc('pin').get(); return d.exists ? d.data() : null; },
+    putPin: rec => col.doc('pin').set(rec),
   };
 }
 function localStore() {
@@ -46,6 +49,8 @@ function localStore() {
     async putKid(k) { const v = get(); v.kids = v.kids.filter(x => x.id !== k.id).concat(k); put(v); },
     async delKid(id) { const v = get(); v.kids = v.kids.filter(x => x.id !== id); put(v); },
     async putSettings(s) { const v = get(); v.settings = s; put(v); },
+    async getPin() { return get().pin || null; },
+    async putPin(rec) { const v = get(); v.pin = rec; put(v); },
   };
 }
 
@@ -167,6 +172,16 @@ export async function bootLite(hostEl, { onExit = null, kidAppUrl = null } = {})
     }
     booted = true;
   }
-  start({ call, kidLink, kidAppUrl: KID_APP_URL, local: !!store.local, onExit }, hostEl);
+  if (!crypto?.subtle) { hostEl.innerHTML = '<p style="padding:24px">Dieser Browser unterstützt die PIN-Sperre nicht. Bitte einen aktuellen Browser verwenden.</p>'; return; }
+  await pinGate(hostEl, store);
+  const lite = {
+    call, kidLink, kidAppUrl: KID_APP_URL, local: !!store.local, onExit,
+    async changePin() {
+      const done = await changePin(hostEl, store);
+      start(lite, hostEl);
+      if (done) { const t = hostEl.querySelector('.lv-toast'); t.textContent = 'Neuer PIN gespeichert ✓'; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); }
+    },
+  };
+  start(lite, hostEl);
 }
 if (document.querySelector('meta[name="sh-lite"]')) bootLite(document.querySelector('.lv-coach'));
