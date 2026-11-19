@@ -1,5 +1,6 @@
 import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, isUnlocked, starsFor, MOODS, TASKS_PER_MISSION, PASS_CORRECT, DEFAULT_UNLOCKED } from './curriculum.js';
 import { generateMission, syllablesOf } from './exercises.js';
+import { decodeKidCode, parseKidHash, encodeReport } from './codec.js';
 
 const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
@@ -13,6 +14,7 @@ const store = {
 const state = {
   mode: null, // 'public' | 'kid'
   kid: null, code: null, info: null, server: false,
+  offline: false, // Kind mit Code, aber ohne Server (Fortschritt lokal, Bericht per Text)
   progress: {}, unlocked: [], autoAdvance: true,
   galaxy: store.get('galaxy', 'zahlen'),
   settings: { fontSize: 'm', spacing: false, font: 'verdana', tint: 'none', autoread: false, calm: false, syll: true, ...store.get('settings', {}) },
@@ -130,14 +132,13 @@ function renderStart() {
       ${i.welcome ? `<p class="tagline">${esc(i.welcome)}</p>` : ''}
       <div class="choices panel">
         <button class="btn primary block" id="go-public">🌍 Losfliegen</button>
-        ${state.server ? `
         <button class="btn block" id="show-code">🔑 Ich habe einen Code</button>
         <form class="code-box hidden" id="code-form" autocomplete="off">
           <label for="code" class="who-sub">Deinen Code bekommst du von deiner Coachin oder deinem Coach.</label>
-          <input id="code" class="code-input" placeholder="STERN-1234" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="20">
+          <input id="code" class="code-input" placeholder="${state.server ? 'STERN-1234' : 'MIA-ABCD-EFGH-JKLMN'}" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="40">
           <p class="err" id="code-err"></p>
           <button class="btn primary block" type="submit">Einsteigen ✨</button>
-        </form>` : ''}
+        </form>
         <button class="btn block" id="open-settings">⚙️ Schrift & Farben</button>
       </div>
       ${i.practiceName || i.coachName ? `
@@ -160,6 +161,9 @@ function renderStart() {
     const err = document.getElementById('code-err');
     if (!code) { err.textContent = 'Bitte gib deinen Code ein.'; return; }
     err.textContent = '';
+    const local = decodeKidCode(code);
+    if (local) { offlineLogin(local); return; }
+    if (!state.server) { err.textContent = 'Dieser Code stimmt nicht. Schau nochmal genau hin – oder frag deine Coachin!'; return; }
     try { await kidLogin(code); } catch (x) { err.textContent = x.message; }
   };
 }
@@ -173,6 +177,50 @@ async function kidLogin(code) {
 function setKid(d) {
   state.kid = d; state.progress = d.progress || {}; state.unlocked = d.unlocked || []; state.autoAdvance = d.autoAdvance !== false;
 }
+// ---------- Code-Kinder ohne Server ----------
+const offlineKids = () => store.get('offline_kids', {});
+function saveOffline(k) { const all = offlineKids(); all[k.id] = k; store.set('offline_kids', all); store.set('offline_current', k.id); }
+function offlineLogin(c, message = null) {
+  const all = offlineKids();
+  const k = all[c.id] || { id: c.id, progress: {}, sessions: [], errors: [], seen: [] };
+  Object.assign(k, { name: c.name, avatar: c.avatar, code: c.code, unlocked: c.unlocked, autoAdvance: c.autoAdvance });
+  k.inbox ||= [];
+  if (message) {
+    const mid = String(message.length) + ':' + message.slice(0, 40);
+    if (!k.seen.includes(mid) && !k.inbox.some(x => x.id === mid)) k.inbox = [{ id: mid, text: message }];
+  }
+  saveOffline(k);
+  state.offline = true; state.code = null; state.mode = 'kid';
+  setKid({ ...k, coachName: '', messages: k.inbox });
+  renderMap();
+}
+function offlineRecord(fn) {
+  const all = offlineKids(), k = all[state.kid.id];
+  if (!k) return;
+  fn(k); k.progress = state.progress;
+  if (k.sessions.length > 300) k.sessions.splice(0, k.sessions.length - 300);
+  if (k.errors.length > 500) k.errors.splice(0, k.errors.length - 500);
+  saveOffline(k);
+}
+async function showReport() {
+  const k = offlineKids()[state.kid.id]; if (!k) return;
+  const code = await encodeReport(k);
+  const text = `🚀 Sternenhüpfer-Bericht von ${k.name}\n${code}`;
+  const sheet = openModal(`
+    <h2>📤 Bericht an deine Coachin</h2>
+    <p>Kopiere diesen Text und schicke ihn deiner Coachin – zum Beispiel per WhatsApp oder E-Mail. Dann sieht sie, was du geschafft hast!</p>
+    <textarea id="rep" class="code-input" style="font-size:.6em;letter-spacing:0;text-transform:none;height:140px;text-align:left" readonly></textarea>
+    <p class="who-sub">Für Eltern: Der Bericht enthält nur Lernergebnisse und Stimmungs-Smileys, keine persönlichen Daten.</p>
+    <div class="sheet-actions"><button class="btn primary block" id="copy-rep">📋 Kopieren</button><button class="btn block" id="close-rep">Fertig</button></div>`, { center: true });
+  const ta = sheet.querySelector('#rep'); ta.value = text;
+  sheet.querySelector('#copy-rep').onclick = () => {
+    const ok = () => toast('Kopiert! Jetzt in WhatsApp oder E-Mail einfügen.');
+    try { navigator.clipboard.writeText(text).then(ok, () => { ta.select(); toast('Bitte markierten Text kopieren (Strg+C / lange drücken).'); }); }
+    catch { ta.select(); toast('Bitte markierten Text kopieren.'); }
+  };
+  sheet.querySelector('#close-rep').onclick = () => closeModal();
+}
+
 const unlockCtx = () => ({ mode: state.mode, progress: state.progress, unlocked: state.unlocked, autoAdvance: state.autoAdvance });
 const open = id => isUnlocked(id, unlockCtx());
 
@@ -202,6 +250,7 @@ function renderMap() {
         </div>
       </div>
       <span class="star-count" aria-label="${totalStars} Sterne">⭐ ${totalStars}</span>
+      ${kid && state.offline ? '<button class="icon-btn" id="report" aria-label="Bericht an Coachin senden" title="Bericht an Coachin senden">📤</button>' : ''}
       <button class="icon-btn" id="settings" aria-label="Einstellungen">⚙️</button>
     </header>
     <nav class="tabs" role="tablist">
@@ -227,6 +276,7 @@ function renderMap() {
 
   document.getElementById('home').onclick = () => { if (state.mode === 'kid') askLogout(); else renderStart(); };
   document.getElementById('settings').onclick = openSettings;
+  document.getElementById('report')?.addEventListener('click', showReport);
   $app.querySelectorAll('.tab').forEach(b => b.onclick = () => { state.galaxy = b.dataset.g; store.set('galaxy', state.galaxy); renderMap(); });
 
   // Rakete parken
@@ -394,7 +444,14 @@ function runMission(p, moodB) {
     const stars = starsFor(m.correct, tasks.length);
     const durationSec = Math.round((Date.now() - m.started) / 1000);
     const payload = { planetId: p.id, correct: m.correct, total: tasks.length, errors: m.errors, tips: m.tips, moodBefore: m.moodB, durationSec };
-    if (state.mode === 'kid') {
+    if (state.mode === 'kid' && state.offline) {
+      localResult(p.id, m.correct, tasks.length, stars);
+      const ts = new Date().toISOString();
+      offlineRecord(k => {
+        k.sessions.push({ ts, planetId: p.id, correct: m.correct, total: tasks.length, stars, moodBefore: m.moodB, moodAfter: null, tips: m.tips, durationSec });
+        for (const e of m.errors) k.errors.push({ ts, planetId: p.id, ...e });
+      });
+    } else if (state.mode === 'kid') {
       try { setKid(await apiCall('/api/kid/result', { method: 'POST', body: payload })); }
       catch { toast('📡 Verbindung zur Basis gestört – Ergebnis nur auf diesem Gerät.'); localResult(p.id, m.correct, tasks.length, stars); }
     } else {
@@ -455,6 +512,7 @@ function renderResult(p, correct, total, stars, newly) {
       <div class="sheet-actions">
         <button class="btn primary block" id="back">🪐 Zurück zur Galaxie</button>
         <button class="btn block" id="again">🔁 Nochmal spielen</button>
+        ${state.mode === 'kid' && state.offline ? '<button class="btn block" id="send-rep">📤 Bericht an meine Coachin</button>' : ''}
       </div>
       ${state.mode === 'public' && state.info?.contactUrl && !passed ? `<p class="who-sub" style="margin-top:1.4em">Für Eltern: Wenn Rechnen oder Lesen oft schwerfällt, hilft persönliche Begleitung. <a href="${esc(state.info.contactUrl)}" target="_blank" rel="noopener">${esc(state.info.practiceName || 'Beratung')} →</a></p>` : ''}
     </section>`;
@@ -463,7 +521,8 @@ function renderResult(p, correct, total, stars, newly) {
   let moodSent = false;
   $app.querySelectorAll('#ma .mood').forEach(b => b.onclick = () => {
     $app.querySelectorAll('#ma .mood').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    if (state.mode === 'kid' && !moodSent) { moodSent = true; apiCall('/api/kid/mood', { method: 'POST', body: { planetId: p.id, moodAfter: Number(b.dataset.v) } }).catch(() => { }); }
+    if (state.mode === 'kid' && state.offline) offlineRecord(k => { const last = k.sessions.at(-1); if (last && last.planetId === p.id) last.moodAfter = Number(b.dataset.v); });
+    else if (state.mode === 'kid' && !moodSent) { moodSent = true; apiCall('/api/kid/mood', { method: 'POST', body: { planetId: p.id, moodAfter: Number(b.dataset.v) } }).catch(() => { }); }
     toast('Danke, dass du es mir sagst! 💛');
   });
   document.getElementById('back').onclick = () => {
@@ -472,6 +531,7 @@ function renderResult(p, correct, total, stars, newly) {
     if (newly[0] && newly[0].galaxy === p.galaxy) setTimeout(() => { placeRocket(newly[0].id, true); store.set('rocket_' + p.galaxy + (state.mode === 'kid' ? '_' + state.kid.code : ''), newly[0].id); $app.querySelector(`.pl[data-id="${newly[0].id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 700);
   };
   document.getElementById('again').onclick = () => moodBefore(p);
+  document.getElementById('send-rep')?.addEventListener('click', showReport);
 }
 
 // ---------- Funkspruch der Coachin ----------
@@ -491,17 +551,18 @@ function showRadio() {
   s.querySelector('#say-radio').onclick = () => speak(text);
   s.querySelector('#ok-radio').onclick = async () => {
     closeModal();
-    try { await apiCall('/api/kid/messages/read', { method: 'POST', body: { ids: msgs.map(x => x.id) } }); } catch { }
+    if (state.offline) offlineRecord(k => { k.seen.push(...msgs.map(x => x.id)); k.inbox = []; });
+    else { try { await apiCall('/api/kid/messages/read', { method: 'POST', body: { ids: msgs.map(x => x.id) } }); } catch { } }
     state.kid.messages = [];
   };
   if (state.settings.autoread) speak(text);
 }
 
 function askLogout() {
-  const s = openModal(`<h2>Zurück zum Start?</h2><p>Dein Fortschritt ist bei deiner Coachin gespeichert. Auf diesem Gerät angemeldet bleiben?</p>
+  const s = openModal(`<h2>Zurück zum Start?</h2><p>${state.offline ? 'Dein Fortschritt bleibt auf diesem Gerät gespeichert.' : 'Dein Fortschritt ist bei deiner Coachin gespeichert.'} Auf diesem Gerät angemeldet bleiben?</p>
     <div class="sheet-actions"><button class="btn primary block" id="stay">Angemeldet bleiben</button><button class="btn block" id="logout">Abmelden (Code vergessen)</button><button class="btn block" id="cancel">Hier bleiben</button></div>`, { center: true });
   s.querySelector('#stay').onclick = () => { closeModal(); renderStart(); };
-  s.querySelector('#logout').onclick = () => { closeModal(); store.del('code'); state.code = null; state.kid = null; renderStart(); };
+  s.querySelector('#logout').onclick = () => { closeModal(); store.del('code'); store.del('offline_current'); state.code = null; state.kid = null; state.offline = false; renderStart(); };
   s.querySelector('#cancel').onclick = () => closeModal();
 }
 
@@ -535,6 +596,11 @@ function openSettings() {
     state.info = await apiCall('/api/info');
     state.server = state.info.serverMode === true; // ohne eigenen Server (z. B. statisch gehostet) nur freie Version
   } catch { state.server = false; state.info = {}; }
+  const fromLink = parseKidHash(location.hash);
+  if (fromLink) { offlineLogin(fromLink, fromLink.message); return; }
+  const cur = store.get('offline_current', null);
+  const ok = cur !== null && offlineKids()[cur];
+  if (ok) { offlineLogin(decodeKidCode(ok.code) || ok); return; }
   const code = store.get('code', null);
   if (state.server && code) {
     state.code = code;

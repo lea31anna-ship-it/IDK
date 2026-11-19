@@ -66,6 +66,15 @@ Normale Lern-Apps zeigen nur „richtig“ oder „falsch“. Sternenhüpfer zei
 
 ---
 
+## 🔗 Variante ohne Server (kostenlos als claude.ai-Web-App)
+
+Im Ordner `lite/` liegt eine Version, die **ohne eigenen Server** läuft (`sh lite/build.sh` baut sie nach `lite/dist/`):
+
+- **Kinder-App** (öffentlich teilbar): Kinder öffnen ihren persönlichen Link `…#k-<name>-<code>`. Darin stehen die freigeschalteten Planeten, der Avatar und optional ein Funkspruch. Alternativ geben sie den Code unter „Ich habe einen Code“ ein. Der Fortschritt bleibt auf dem Gerät des Kindes.
+- **Coach-Dashboard** (privat): Kinder anlegen, freischalten, Link oder Funkspruch per Kopieren verschicken. Über 📤 in der App schicken Eltern einen **Bericht-Code** (`SH1…`), den du mit „📥 Bericht einfügen“ übernimmst. Danach sind Fehler-Radar, Gefühls-Kompass, Frühwarnsystem und Elternbericht wie in der Server-Version gefüllt.
+
+Unterschied zur Server-Version: Ergebnisse kommen nicht automatisch an, sondern per Bericht-Code. Ein Code lässt sich nicht sperren; schalte stattdessen weniger frei und schicke einen neuen Link.
+
 ## ▶️ Starten
 
 Du brauchst nur [Node.js](https://nodejs.org) ab Version 18. Weitere Pakete sind nicht nötig.

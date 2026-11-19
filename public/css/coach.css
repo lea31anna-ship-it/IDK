@@ -62,7 +62,7 @@ textarea { min-height: 120px; resize: vertical; }
 .kid-item .av { font-size: 1.4em; }
 .kid-item .meta { font-size: .78em; color: var(--muted); }
 .side-section { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-top: 8px; }
-main { padding: 24px 28px 60px; max-width: 1150px; width: 100%; }
+main { padding: 24px 28px 60px; max-width: 1150px; width: 100%; min-width: 0; }
 .page-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
 .page-head h1 { margin: 0; font-size: 1.6em; flex: 1; min-width: 200px; }
 

@@ -3,7 +3,8 @@ import { GALAXIES, PLANETS, PLANET_BY_ID, planetsOf, ERROR_TYPES, MOODS, isUnloc
 const root = document.getElementById('root');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
-const S = { token: ls.get('sh_coach_token'), kids: [], settings: {}, view: 'overview', kid: null, tab: 'overview', range: 30 };
+const S = { token: ls.get('sh_coach_token'), kids: [], settings: {}, view: 'overview', kid: null, tab: 'overview', range: 30, lite: null };
+// lite = serverlose Variante (Web-App ohne eigenen Server): { call(path, opts), kidLink(kid, msg), kidAppUrl }
 const AVATARS = ['🧑‍🚀', '👩‍🚀', '👨‍🚀', '🦊', '🐼', '🦄', '🐯', '🐸', '🐙', '🦖', '🐱', '🐶', '🦁', '🐧', '🦋', '🤖', '👽', '🌟'];
 const moodE = v => MOODS.find(m => m.v === v)?.e || '–';
 const fmtDate = ts => ts ? new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '–';
@@ -13,12 +14,40 @@ const starsHtml = n => [1, 2, 3].map(i => `<span class="${i <= n ? '' : 'off'}">
 const pName = id => PLANET_BY_ID[id]?.name || id;
 
 function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); }
-async function api(path, { method = 'GET', body } = {}) {
+async function api(path, opts = {}) {
+  if (S.lite) return S.lite.call(path, opts);
+  const { method = 'GET', body } = opts;
   const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (S.token || '') }, body: body ? JSON.stringify(body) : undefined });
   const d = await r.json().catch(() => ({}));
   if (r.status === 401 && !path.includes('/login')) { S.token = null; ls.set('sh_coach_token', null); renderLogin(); throw new Error(d.error || 'Bitte anmelden'); }
   if (!r.ok) throw new Error(d.error || 'Fehler');
   return d;
+}
+
+// Eigene Bestätigungsdialoge (window.confirm/prompt sind nicht überall verfügbar)
+function ask(text, { okLabel = 'OK', danger = false, typeToConfirm = null } = {}) {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.innerHTML = `<form method="dialog"><p style="margin-top:0">${esc(text)}</p>
+      ${typeToConfirm ? `<div class="field"><input id="ask-in" type="text" autocomplete="off" aria-label="Bestätigung"></div>` : ''}
+      <div class="row"><button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${esc(okLabel)}</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
+    document.body.appendChild(d); d.showModal();
+    d.addEventListener('close', () => { const ok = d.returnValue === 'ok' && (!typeToConfirm || d.querySelector('#ask-in').value.trim() === typeToConfirm); d.remove(); resolve(ok); });
+  });
+}
+function showCopy(title, text, hint = '') {
+  const d = document.createElement('dialog');
+  d.innerHTML = `<form method="dialog"><h2 style="margin-top:0">${esc(title)}</h2>${hint ? `<p class="muted">${esc(hint)}</p>` : ''}
+    <textarea id="cp" readonly style="min-height:110px"></textarea>
+    <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="cpb">📋 Kopieren</button><button class="btn" value="close">Schließen</button></div></form>`;
+  document.body.appendChild(d); d.showModal();
+  const ta = d.querySelector('#cp'); ta.value = text;
+  d.querySelector('#cpb').onclick = () => copyText(text, ta);
+  d.addEventListener('close', () => d.remove());
+}
+function copyText(text, fallbackEl) {
+  try { navigator.clipboard.writeText(text).then(() => toast('Kopiert'), () => { fallbackEl?.select(); toast('Bitte markierten Text kopieren'); }); }
+  catch { fallbackEl?.select(); toast('Bitte markierten Text kopieren'); }
 }
 
 // ---------- Login / Einrichtung ----------
@@ -85,7 +114,7 @@ function render() {
               <span><strong>${esc(k.name)}</strong><div class="meta">${k.lastActive ? 'aktiv ' + relDays(k.lastActive) : 'noch nicht gespielt'}</div></span>
               <span class="stars" title="Sterne">★${k.stars}</span></button>`).join('') || '<p class="muted">Noch keine Kinder angelegt.</p>'}
           </div>
-          <div style="margin-top:auto" class="row"><a class="btn small" href="/" target="_blank">Kinder-App ↗</a><button class="btn small" id="logout">Abmelden</button></div>
+          <div style="margin-top:auto" class="row"><a class="btn small" href="${S.lite ? esc(S.lite.kidAppUrl) : '/'}" target="_blank" rel="noopener">Kinder-App ↗</a>${S.lite ? '' : '<button class="btn small" id="logout">Abmelden</button>'}</div>
         </div>
       </aside>
       <main id="main"></main>
@@ -94,7 +123,7 @@ function render() {
   root.querySelectorAll('.kid-item').forEach(b => b.onclick = () => openKid(b.dataset.id));
   document.getElementById('add').onclick = newKidDialog;
   document.getElementById('menu').onclick = () => document.getElementById('side').classList.toggle('collapsed');
-  document.getElementById('logout').onclick = async () => { try { await api('/api/coach/logout', { method: 'POST' }); } catch { } S.token = null; ls.set('sh_coach_token', null); renderLogin(); };
+  if (!S.lite) document.getElementById('logout').onclick = async () => { try { await api('/api/coach/logout', { method: 'POST' }); } catch { } S.token = null; ls.set('sh_coach_token', null); renderLogin(); };
   document.getElementById('search').oninput = e => { const q = e.target.value.toLowerCase(); root.querySelectorAll('.kid-item').forEach(b => b.classList.toggle('hidden', !b.dataset.name.includes(q))); };
   const main = document.getElementById('main');
   if (S.view === 'overview') renderOverview(main);
@@ -127,7 +156,7 @@ function renderOverview(main) {
   const avgMood = moods.length ? moods.reduce((a, b) => a + b, 0) / moods.length : null;
   const alerts = S.kids.flatMap(alertsFor).sort((a, b) => ({ bad: 0, warn: 1, good: 2 }[a.lvl] - { bad: 0, warn: 1, good: 2 }[b.lvl]));
   main.innerHTML = `
-    <div class="page-head"><h1>Hallo${S.settings.coachName ? ' ' + esc(S.settings.coachName) : ''} 👋</h1><div class="row"><button class="btn primary" id="add2">+ Kind anlegen</button></div></div>
+    <div class="page-head"><h1>Hallo${S.settings.coachName ? ' ' + esc(S.settings.coachName) : ''} 👋</h1><div class="row">${S.lite ? '<button class="btn" id="imp">📥 Bericht einfügen</button>' : ''}<button class="btn primary" id="add2">+ Kind anlegen</button></div></div>
     <div class="stats">
       <div class="stat"><div class="v">${S.kids.length}</div><div class="l">Kinder mit Code</div></div>
       <div class="stat"><div class="v">${activeKids}</div><div class="l">aktiv in den letzten 7 Tagen</div></div>
@@ -151,13 +180,14 @@ function renderOverview(main) {
     <div class="card"><h2>Alle Kinder</h2>
       ${S.kids.length ? `<table class="resp"><thead><tr><th>Kind</th><th>Code</th><th>Zuletzt aktiv</th><th>Planeten</th><th>Sterne</th><th>Trefferquote*</th><th>Stimmung*</th></tr></thead><tbody>
       ${[...S.kids].sort((a, b) => (b.lastActive || '').localeCompare(a.lastActive || '')).map(k => `<tr class="click" data-id="${k.id}">
-        <td>${esc(k.avatar)} <strong>${esc(k.name)}</strong></td><td><span class="code">${esc(k.code)}</span></td>
+        <td>${esc(k.avatar)} <strong>${esc(k.name)}</strong></td><td><span class="code" style="font-size:.85em">${esc(k.code)}</span></td>
         <td>${k.lastActive ? relDays(k.lastActive) : '<span class="muted">nie</span>'}</td><td>${k.planetsDone}</td><td class="stars">★ ${k.stars}</td>
         <td>${k.accuracy === null ? '–' : `<span class="tag ${k.accuracy >= 80 ? 'good' : k.accuracy >= 60 ? 'warn' : 'bad'}">${k.accuracy} %</span>`}</td>
         <td>${k.mood ? moodE(Math.round(k.mood)) + ' ' + k.mood : '–'}</td></tr>`).join('')}
       </tbody></table><p class="muted" style="font-size:.82em">* bezogen auf die letzten 10 Missionen</p>` : '<p>Lege dein erstes Kind an – es bekommt automatisch einen Zugangscode für die App.</p>'}
     </div>`;
   document.getElementById('add2').onclick = newKidDialog;
+  document.getElementById('imp')?.addEventListener('click', importDialog);
   main.querySelectorAll('tr.click').forEach(r => r.onclick = () => openKid(r.dataset.id));
   main.querySelectorAll('.alert').forEach(b => b.onclick = () => { const a = alerts[Number(b.dataset.i)]; openKid(a.kid, a.tab || 'overview'); });
 }
@@ -180,8 +210,9 @@ function newKidDialog() {
     e.preventDefault();
     try {
       const k = await api('/api/coach/kids', { method: 'POST', body: { name: d.querySelector('#nk-name').value, avatar: av } });
-      d.close(); await refreshKids(); openKid(k.id, 'unlock');
-      toast(`Code für ${k.name}: ${k.code}`);
+      d.close(); await refreshKids(); await openKid(k.id, 'unlock');
+      if (S.lite) toast('Wähle die Planeten aus und speichere – dann bekommst du den Link für die Eltern.');
+      else toast(`Code für ${k.name}: ${k.code}`);
     } catch (x) { d.querySelector('#nk-err').textContent = x.message; }
   };
   d.addEventListener('close', () => d.remove());
@@ -201,16 +232,20 @@ function renderKid(main) {
       <h1>${esc(k.avatar)} ${esc(k.name)}</h1>
       <div class="row">
         <span>Code: <span class="code">${esc(k.code)}</span></span>
-        <button class="btn small" id="copy">Kopieren</button>
-        <button class="btn small" id="card">🖨 Zugangskarte</button>
+        ${S.lite ? '<button class="btn small primary" id="link">🔗 Link für Eltern</button><button class="btn small" id="imp">📥 Bericht einfügen</button>' : '<button class="btn small" id="copy">Kopieren</button><button class="btn small" id="card">🖨 Zugangskarte</button>'}
         <button class="btn small" id="edit">Bearbeiten</button>
       </div>
     </div>
     <div class="tabs" role="tablist">${TABS.map(([v, l]) => `<button role="tab" data-t="${v}" class="${S.tab === v ? 'active' : ''}">${l}</button>`).join('')}</div>
     <div id="tab"></div>`;
   main.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderKid(main); });
-  document.getElementById('copy').onclick = () => { navigator.clipboard?.writeText(k.code); toast('Code kopiert'); };
-  document.getElementById('card').onclick = () => printCard(k);
+  if (S.lite) {
+    document.getElementById('link').onclick = () => shareLink(k);
+    document.getElementById('imp').onclick = importDialog;
+  } else {
+    document.getElementById('copy').onclick = () => copyText(k.code);
+    document.getElementById('card').onclick = () => printCard(k);
+  }
   document.getElementById('edit').onclick = editKidDialog;
   const t = document.getElementById('tab');
   ({ overview: tabOverview, unlock: tabUnlock, errors: tabErrors, mood: tabMood, radio: tabRadio, notes: tabNotes, report: tabReport })[S.tab](t, k);
@@ -243,14 +278,14 @@ function tabOverview(el, k) {
       }).join('')}</div>`).join('')}
     </div>
     <div class="card no-print"><h2>Verwaltung</h2><div class="row">
-      <button class="btn" id="newcode">🔑 Neuen Code erzeugen</button>
+      ${S.lite ? '' : '<button class="btn" id="newcode">🔑 Neuen Code erzeugen</button>'}
       <button class="btn" id="reset">↺ Fortschritt zurücksetzen</button>
       <button class="btn danger" id="del">🗑 Kind löschen</button></div>
-      <p class="muted" style="font-size:.85em">Neuer Code: der alte funktioniert danach nicht mehr (z. B. wenn er weitergegeben wurde).</p>
+      ${S.lite ? '' : '<p class="muted" style="font-size:.85em">Neuer Code: der alte funktioniert danach nicht mehr (z. B. wenn er weitergegeben wurde).</p>'}
     </div>`;
-  el.querySelector('#newcode').onclick = async () => { if (!confirm('Neuen Code erzeugen? Der alte Code wird ungültig.')) return; S.kid = await api(`/api/coach/kids/${k.id}/code`, { method: 'POST' }); await refreshKids(); render(); toast('Neuer Code: ' + S.kid.code); };
-  el.querySelector('#reset').onclick = async () => { if (!confirm(`Gesamten Fortschritt von ${k.name} löschen? (Notizen und Freischaltungen bleiben.)`)) return; S.kid = await api(`/api/coach/kids/${k.id}/reset`, { method: 'POST' }); await refreshKids(); render(); };
-  el.querySelector('#del').onclick = async () => { if (prompt(`Zum Löschen bitte den Namen „${k.name}“ eintippen:`) !== k.name) return; await api('/api/coach/kids/' + k.id, { method: 'DELETE' }); await refreshKids(); S.view = 'overview'; S.kid = null; render(); toast('Gelöscht'); };
+  if (!S.lite) el.querySelector('#newcode').onclick = async () => { if (!await ask('Neuen Code erzeugen? Der alte Code wird ungültig.', { okLabel: 'Neuen Code erzeugen' })) return; S.kid = await api(`/api/coach/kids/${k.id}/code`, { method: 'POST' }); await refreshKids(); render(); toast('Neuer Code: ' + S.kid.code); };
+  el.querySelector('#reset').onclick = async () => { if (!await ask(`Gesamten Fortschritt von ${k.name} im Dashboard löschen? (Notizen und Freischaltungen bleiben.)`, { okLabel: 'Zurücksetzen', danger: true })) return; S.kid = await api(`/api/coach/kids/${k.id}/reset`, { method: 'POST' }); await refreshKids(); render(); };
+  el.querySelector('#del').onclick = async () => { if (!await ask(`Zum Löschen bitte den Namen „${k.name}“ eintippen:`, { okLabel: 'Endgültig löschen', danger: true, typeToConfirm: k.name })) return; await api('/api/coach/kids/' + k.id, { method: 'DELETE' }); await refreshKids(); S.view = 'overview'; S.kid = null; render(); toast('Gelöscht'); };
 }
 
 function tabUnlock(el, k) {
@@ -258,7 +293,7 @@ function tabUnlock(el, k) {
   el.innerHTML = `
     <div class="card">
       <h2>Welche Themen bearbeitet ihr gerade?</h2>
-      <p class="muted" style="margin-top:-6px">Angehakte Planeten sind für ${esc(k.name)} sofort offen (mit 🚩 markiert). Gespielte Planeten bleiben immer offen.</p>
+      <p class="muted" style="margin-top:-6px">Angehakte Planeten sind für ${esc(k.name)} offen (mit 🚩 markiert). Gespielte Planeten bleiben immer offen.${S.lite ? ' Nach dem Speichern bekommst du einen neuen Link, den du den Eltern schickst.' : ''}</p>
       <label class="switch"><input type="checkbox" id="auto" ${k.autoAdvance ? 'checked' : ''}> <span><strong>Automatisch weiterschalten</strong> – nach einem geschafften Planeten öffnet sich der nächste von selbst</span></label>
       ${GALAXIES.map(g => `<h3 style="font-size:1em;margin-top:20px">${g.icon} ${esc(g.name)} <button class="btn small" data-all="${g.id}">alle</button> <button class="btn small" data-none="${g.id}">keine</button></h3>
         <div class="planet-grid">${planetsOf(g.id).map(p => `<label class="pcheck"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span><div class="pn">${esc(p.name)}</div><div class="pt">${esc(p.topic)}</div></span><span class="stars">${k.progress[p.id] ? starsHtml(k.progress[p.id].bestStars) : ''}</span></label>`).join('')}</div>`).join('')}
@@ -268,7 +303,8 @@ function tabUnlock(el, k) {
   el.querySelectorAll('[data-none]').forEach(b => b.onclick = () => el.querySelectorAll('.pcheck input').forEach(i => { if (PLANET_BY_ID[i.value].galaxy === b.dataset.none) i.checked = false; }));
   el.querySelector('#save').onclick = async () => {
     await patchKid({ unlocked: [...el.querySelectorAll('.pcheck input:checked')].map(i => i.value), autoAdvance: el.querySelector('#auto').checked });
-    el.querySelector('#saved').textContent = '✓ Gespeichert – beim nächsten Start sieht das Kind die neuen Planeten.';
+    if (S.lite) { el.querySelector('#saved').textContent = '✓ Gespeichert'; shareLink(S.kid); }
+    else el.querySelector('#saved').textContent = '✓ Gespeichert – beim nächsten Start sieht das Kind die neuen Planeten.';
   };
 }
 
@@ -374,19 +410,20 @@ const TEMPLATES = ['Super gemacht diese Woche! Ich bin stolz auf dich! 🌟', 'I
 function tabRadio(el, k) {
   el.innerHTML = `
     <div class="card"><h2>📡 Funkspruch an ${esc(k.name)}</h2>
-      <p class="muted" style="margin-top:-6px">Erscheint beim nächsten App-Start als Funkspruch aus der Basis – mit Vorlese-Funktion.</p>
+      <p class="muted" style="margin-top:-6px">${S.lite ? 'Du bekommst einen Link mit dem Funkspruch. Schick ihn den Eltern – beim Öffnen erscheint die Nachricht als Funkspruch aus der Basis, mit Vorlese-Funktion.' : 'Erscheint beim nächsten App-Start als Funkspruch aus der Basis – mit Vorlese-Funktion.'}</p>
       <div class="templates">${TEMPLATES.map((t, i) => `<button class="btn small" data-t="${i}">${esc(t.slice(0, 32))}…</button>`).join('')}</div>
-      <textarea id="msg" maxlength="500" placeholder="Kurz und einfach schreiben – das Kind bekommt den Text vorgelesen."></textarea>
+       <textarea id="msg" maxlength="${S.lite ? 160 : 500}" placeholder="Kurz und einfach schreiben – das Kind bekommt den Text vorgelesen."></textarea>
       <div class="row" style="margin-top:10px"><button class="btn primary" id="send">Senden 🚀</button></div>
     </div>
     <div class="card"><h2>Bisherige Funksprüche</h2>
-      ${k.messages.length ? [...k.messages].reverse().map(m => `<div class="msg">${esc(m.text)}<div class="when">${fmtDateTime(m.ts)} · ${m.read ? '✓ gelesen ' + fmtDateTime(m.readAt) : '⏳ noch nicht gelesen'}</div></div>`).join('') : '<p class="muted">Noch keine Funksprüche.</p>'}
+      ${k.messages.length ? [...k.messages].reverse().map(m => `<div class="msg">${esc(m.text)}<div class="when">${fmtDateTime(m.ts)} · ${S.lite ? '🔗 als Link verschickt' : m.read ? '✓ gelesen ' + fmtDateTime(m.readAt) : '⏳ noch nicht gelesen'}</div></div>`).join('') : '<p class="muted">Noch keine Funksprüche.</p>'}
     </div>`;
   el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { el.querySelector('#msg').value = TEMPLATES[Number(b.dataset.t)]; });
   el.querySelector('#send').onclick = async () => {
     const text = el.querySelector('#msg').value.trim(); if (!text) return;
     S.kid = await api(`/api/coach/kids/${k.id}/messages`, { method: 'POST', body: { text } }); await refreshKids();
-    toast('Funkspruch gesendet'); tabRadio(el, S.kid);
+    tabRadio(el, S.kid);
+    if (S.lite) shareLink(S.kid, text); else toast('Funkspruch gesendet');
   };
 }
 
@@ -427,7 +464,7 @@ function tabReport(el, k) {
   const mb = sess.filter(s => s.moodBefore && s.moodAfter);
   const moodGain = mb.length ? mb.reduce((a, s) => a + (s.moodAfter - s.moodBefore), 0) / mb.length : null;
   el.innerHTML = `
-    <div class="row no-print" style="margin-bottom:12px"><button class="btn primary" id="print">🖨 Drucken / als PDF speichern</button>
+    <div class="row no-print" style="margin-bottom:12px"><button class="btn primary" id="print">${S.lite ? '📋 Als Text kopieren' : '🖨 Drucken / als PDF speichern'}</button>
       <label class="switch"><input type="checkbox" id="withnotes"> Notizen mitdrucken</label></div>
     <div class="card" id="report">
       <p class="muted" style="margin:0">${esc(S.settings.practiceName || 'Lerncoaching')} ${S.settings.coachName ? '· ' + esc(S.settings.coachName) : ''}</p>
@@ -445,7 +482,13 @@ function tabReport(el, k) {
       <div id="rnotes" class="hidden"><h3>📝 Anmerkungen</h3><p style="white-space:pre-wrap">${esc(k.notes)}</p></div>
     </div>`;
   el.querySelector('#withnotes').onchange = e => el.querySelector('#rnotes').classList.toggle('hidden', !e.target.checked);
-  el.querySelector('#print').onclick = () => window.print();
+  el.querySelector('#print').onclick = () => {
+    if (!S.lite) { window.print(); return; }
+    const r = el.querySelector('#report');
+    const lines = [];
+    r.querySelectorAll('p, h2, h3, li').forEach(n => { if (n.closest('.hidden')) return; const t = n.textContent.replace(/\s+/g, ' ').trim(); if (t) lines.push(n.tagName === 'LI' ? '• ' + t : n.tagName === 'H3' ? '\n' + t : t); });
+    showCopy('Elternbericht', lines.join('\n'), 'Zum Einfügen in eine E-Mail, WhatsApp-Nachricht oder ein Textdokument.');
+  };
 }
 
 function printCard(k) {
@@ -487,7 +530,7 @@ function renderSettings(main) {
   main.innerHTML = `
     <div class="page-head"><h1>⚙️ Einstellungen</h1></div>
     <div class="card"><h2>Deine Praxis in der App</h2>
-      <p class="muted" style="margin-top:-6px">Erscheint auf der Startseite der freien Version („Für Eltern“) – so wird die kostenlose App zu deiner Visitenkarte.</p>
+      <p class="muted" style="margin-top:-6px">${S.lite ? 'Erscheint im Dashboard und im Elternbericht.' : 'Erscheint auf der Startseite der freien Version („Für Eltern“) – so wird die kostenlose App zu deiner Visitenkarte.'}</p>
       <form id="sf">
         <div class="field"><label for="pn">Praxisname</label><input id="pn" type="text" maxlength="80" value="${esc(s.practiceName)}" placeholder="z. B. Lernwerkstatt Sonnenschein"></div>
         <div class="field"><label for="cn">Dein Name (so sehen dich die Kinder)</label><input id="cn" type="text" maxlength="60" value="${esc(s.coachName)}" placeholder="z. B. Frau Lea"></div>
@@ -496,7 +539,10 @@ function renderSettings(main) {
         <button class="btn primary">Speichern</button> <span class="muted" id="ss"></span>
       </form>
     </div>
-    <div class="grid2">
+    ${S.lite ? `<div class="card"><h2>So funktioniert die Version ohne Server</h2>
+      <ul style="margin:0;padding-left:1.2em"><li>Dieses Dashboard ist nur für dich sichtbar; deine Daten liegen in deinem Claude-Konto.</li>
+      <li>Kinder bekommen von dir einen persönlichen <strong>Link</strong> (oder Code). Darin stehen die freigeschalteten Planeten und ggf. ein Funkspruch.</li>
+      <li>Der Fortschritt bleibt auf dem Gerät des Kindes. Über 📤 in der App schicken Eltern dir einen <strong>Bericht-Code</strong>, den du hier mit „📥 Bericht einfügen“ übernimmst.</li></ul></div>` : `<div class="grid2">
       <div class="card"><h2>Passwort ändern</h2>
         <form id="pf"><div class="field"><label for="op">Altes Passwort</label><input id="op" type="password" autocomplete="current-password" required></div>
         <div class="field"><label for="np">Neues Passwort (mind. 8 Zeichen)</label><input id="np" type="password" autocomplete="new-password" minlength="8" required></div>
@@ -506,22 +552,52 @@ function renderSettings(main) {
         <p>Lade regelmäßig eine Sicherung aller Daten herunter (JSON-Datei). Bitte sicher aufbewahren – sie enthält Lerndaten der Kinder.</p>
         <button class="btn" id="exp">⬇ Sicherung herunterladen</button>
       </div>
-    </div>`;
+    </div>`}`;
   main.querySelector('#sf').onsubmit = async e => {
     e.preventDefault();
     S.settings = await api('/api/coach/settings', { method: 'PUT', body: { practiceName: main.querySelector('#pn').value, coachName: main.querySelector('#cn').value, contactUrl: main.querySelector('#cu').value, welcome: main.querySelector('#wl').value } });
     main.querySelector('#ss').textContent = '✓ Gespeichert';
   };
-  main.querySelector('#pf').onsubmit = async e => {
+  if (!S.lite) main.querySelector('#pf').onsubmit = async e => {
     e.preventDefault();
     try { await api('/api/coach/password', { method: 'POST', body: { oldPassword: main.querySelector('#op').value, newPassword: main.querySelector('#np').value } }); main.querySelector('#ps').textContent = ''; toast('Passwort geändert'); e.target.reset(); }
     catch (x) { main.querySelector('#ps').textContent = x.message; }
   };
-  main.querySelector('#exp').onclick = async () => {
+  if (!S.lite) main.querySelector('#exp').onclick = async () => {
     const r = await fetch('/api/coach/export', { headers: { Authorization: 'Bearer ' + S.token } });
     const blob = await r.blob(); const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `sternenhuepfer-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
   };
 }
 
-S.token ? boot() : renderLogin();
+function shareLink(k, message = '') {
+  const url = S.lite.kidLink(k, message);
+  const text = message
+    ? `📡 Ein Funkspruch für ${k.name}! Einfach antippen: ${url}`
+    : `🚀 Hallo! Hier ist ${k.name}s persönlicher Sternenhüpfer-Link: ${url}\n(Falls der Link nicht geht: Code „${k.code}“ in der App unter „Ich habe einen Code“ eingeben.)`;
+  showCopy(message ? 'Funkspruch-Link für die Eltern' : `Link für ${k.name}`, text, 'Schick diesen Text den Eltern, z. B. per WhatsApp oder E-Mail. Neuer Link = neue Freischaltungen; der Fortschritt des Kindes bleibt erhalten.');
+}
+function importDialog() {
+  const d = document.createElement('dialog');
+  d.innerHTML = `<form method="dialog" id="impf"><h2 style="margin-top:0">📥 Bericht einfügen</h2>
+    <p class="muted">Füge den Text ein, den dir die Eltern geschickt haben (er enthält „SH1“).</p>
+    <textarea id="imp-t" style="min-height:140px"></textarea><p class="err" id="imp-e"></p>
+    <div class="row"><button class="btn primary" value="ok">Übernehmen</button><button class="btn" value="cancel" formnovalidate>Abbrechen</button></div></form>`;
+  document.body.appendChild(d); d.showModal();
+  d.querySelector('form').onsubmit = async e => {
+    if (e.submitter?.value === 'cancel') return;
+    e.preventDefault();
+    try {
+      const r = await api('/api/coach/import', { method: 'POST', body: { text: d.querySelector('#imp-t').value } });
+      d.close(); await refreshKids(); await openKid(r.kid.id, 'overview');
+      toast(r.created ? `${r.kid.name} neu angelegt und Bericht übernommen` : `Bericht von ${r.kid.name} übernommen (${r.newSessions} neue Missionen)`);
+    } catch (x) { d.querySelector('#imp-e').textContent = x.message; }
+  };
+  d.addEventListener('close', () => d.remove());
+}
+
+export function start(lite = null) {
+  S.lite = lite;
+  if (lite) boot(); else S.token ? boot() : renderLogin();
+}
+if (!document.querySelector('meta[name="sh-lite"]')) start();
